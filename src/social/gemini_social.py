@@ -718,44 +718,49 @@ Rispondi SOLO con JSON valido:
 # ── Layout system — 4 layout approvati, scelti per archetype ────────────
 
 _LAYOUT_A = (
-    "LAYOUT A — SIGNATURE POLAROID\n"
-    "- The entire composition is a polaroid card on a brand-colored background\n"
-    "- Polaroid card (white border + photo) occupies 78–82% of the square, rotated 2–4°\n"
-    "- The white polaroid border is part of the composition — text lives INSIDE the border at the bottom\n"
-    "- Service name in elegant italic serif in the bottom white margin of the polaroid\n"
-    "- Top-left corner of the card: one micro-label in spaced small caps\n"
-    "- Unity technique: the background color bleeds behind the card creating a seamless brand frame\n"
-    "- The result: photo + frame + text feel like one designed object, not separate layers"
+    "LAYOUT A — BOTTOM GRADIENT CAPTION\n"
+    "- Photo fills the ENTIRE frame edge-to-edge — never shrink or crop it\n"
+    "- A gradient fades from fully transparent (starting at roughly 60–70% from the top) "
+    "to a solid brand color at the very bottom edge\n"
+    "- Service name sits inside the solid bottom area of the gradient, in elegant italic serif\n"
+    "- Optional: one micro-label in spaced small caps at the top-left corner of the frame\n"
+    "- One ultra-thin ornamental line where the gradient begins to become visible\n"
+    "- The gradient must start fading from a neutral/background area of the photo, never from the subject\n"
+    "- Result: the text feels anchored to the bottom of the photo, not floating — one unified image"
 )
 
 _LAYOUT_B = (
-    "LAYOUT B — GRADIENT FADE STRIP\n"
-    "- Photo fills the full frame edge-to-edge\n"
-    "- A gradient band fades from transparent (mid-photo) to solid brand color at top or bottom edge\n"
-    "- Text sits inside the solid part of the gradient — fully legible, never floating over the photo\n"
-    "- The gradient creates a smooth visual bridge between photo and text: they feel like one piece\n"
-    "- One ultra-thin ornamental line at the boundary between gradient and photo\n"
-    "- Unity technique: the gradient must start fading from a neutral area of the photo, never from the subject"
+    "LAYOUT B — TOP GRADIENT CAPTION\n"
+    "- Photo fills the ENTIRE frame edge-to-edge — never shrink or crop it\n"
+    "- A gradient fades from solid brand color at the very top edge to fully transparent "
+    "at roughly 30–35% from the top\n"
+    "- Service name and/or brand name sit in the solid top area of the gradient\n"
+    "- One ultra-thin ornamental line where the gradient dissolves into the photo\n"
+    "- The gradient must start from a neutral/background area at the top of the photo\n"
+    "- Result: photo and text feel like one cohesive editorial frame"
 )
 
 _LAYOUT_C = (
-    "LAYOUT C — INTEGRATED BRAND COLUMN\n"
-    "- Photo occupies 65–70% of the width (right side), flush to all edges\n"
-    "- Left column in brand background color, same height as the photo\n"
-    "- A subtle shadow or thin gradient at the photo/column boundary makes them feel connected\n"
-    "- Service name in the column: large, elegant, anchored — feels like a title belonging to the photo\n"
-    "- Optional: a thin brand-colored top bar spanning the full width ties column and photo together\n"
-    "- Unity technique: the column and photo share the same vertical axis — the design reads as one frame"
+    "LAYOUT C — VERTICAL SIDE GRADIENT\n"
+    "- Photo fills the ENTIRE frame edge-to-edge — never shrink or crop it\n"
+    "- A gradient fades from solid brand color at the left (or right) edge to fully transparent "
+    "at roughly 30–40% from that edge\n"
+    "- Service name reads vertically inside the solid part of the gradient, elegant and large\n"
+    "- The gradient must originate from a neutral/background area of the photo on that side\n"
+    "- One ultra-thin horizontal ornamental line at top or bottom ties the composition\n"
+    "- Result: the vertical text feels like a title column grown from the photo itself"
 )
 
 _LAYOUT_D = (
     "LAYOUT D — TRANSFORMATION SPLIT (before/after only)\n"
-    "- BEFORE photo fills the left half, AFTER fills the right half — both edge-to-edge\n"
+    "- BEFORE photo fills the left half edge-to-edge, AFTER photo fills the right half edge-to-edge\n"
+    "- Neither photo is shrunk — each occupies exactly 50% of the full frame\n"
     "- Thin elegant divider at center: hair-thin line with ◇ symbol, spans full height\n"
-    "- 'PRIMA' label top-left, 'DOPO' label top-right, in spaced small caps\n"
-    "- A narrow bottom strip in brand color spans the full width, uniting both halves\n"
-    "- Service name centered in this bottom strip in thin italic serif\n"
-    "- Unity technique: the bottom strip and divider create a graphic structure that holds both photos together"
+    "- 'PRIMA' label top-left, 'DOPO' label top-right, in spaced small caps — "
+    "placed over a very subtle dark gradient at those corners for legibility\n"
+    "- A narrow solid brand-color strip at the very bottom spans the full width, "
+    "service name centered inside it in thin italic serif\n"
+    "- Result: the bottom strip and divider hold both full-frame photos together as one design"
 )
 
 _ARCHETYPE_LAYOUTS: dict = {
@@ -1124,9 +1129,11 @@ async def generate_image(
 
             f"{placement_section}"
 
-            f"The attached photo is the hero of the composition. "
+            f"ABSOLUTE RULE — FULL-FRAME PHOTO: The photo must fill the entire 1:1 canvas edge-to-edge. "
+            f"Never shrink, scale down, add a border around, or letterbox the photo. "
+            f"All graphic elements (text, gradients, strips) must be layered ON TOP of the full-frame photo. "
             f"Do not redraw, retouch, recolor, or alter the photo itself. "
-            f"It must remain sharp and fully visible — especially the beauty treatment result.\n\n"
+            f"The beauty treatment result must remain sharp and fully visible.\n\n"
 
             f"Brand: {center_name}\n"
             f"Service: {service_name or '(see photo)'}\n"
