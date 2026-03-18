@@ -243,7 +243,7 @@ def _get_service_rules(service_name: str) -> dict:
 
 # ── 1. Selezione e pianificazione settimanale ──────────────────────
 
-def select_and_plan_week(
+async def select_and_plan_week(
     appointments: list[dict],
     tenant: dict,
     week_start_str: str,
@@ -253,8 +253,9 @@ def select_and_plan_week(
     """
     Seleziona gli appuntamenti e crea il piano editoriale.
 
-    - Python decide archetype e checklist (mapping deterministico)
-    - Gemini decide solo caption e hashtag (creatività)
+    - Python decide archetype e schema foto (deterministico, affidabile)
+    - Gemini personalizza le istruzioni foto per il servizio specifico (dinamico)
+    - Gemini genera caption e hashtag (creativo)
     """
     social_profile = tenant.get("social_profile") or {}
     content_frequency = social_profile.get("content_frequency", 3)
@@ -290,14 +291,21 @@ def select_and_plan_week(
     # Limita al content_frequency
     candidati = candidati[:content_frequency]
 
-    # Per ogni candidato: Python assegna archetype+checklist, Gemini fa caption+hashtag
+    # Per ogni candidato: Python schema base, Gemini personalizza istruzioni + caption
     results = []
     for c in candidati:
         service_name = c["servizio"]
         rules = _get_service_rules(service_name)
 
-        # Gemini genera solo caption e hashtag
-        caption, hashtags = _generate_caption_and_hashtags(
+        # Gemini personalizza le istruzioni foto (con fallback alle istruzioni base)
+        checklist = await _personalize_checklist_instructions(
+            service_name=service_name,
+            archetype=rules["archetype"],
+            base_checklist=rules["checklist"],
+        )
+
+        # Gemini genera caption e hashtag
+        caption, hashtags = await _generate_caption_and_hashtags(
             service_name=service_name,
             archetype=rules["archetype"],
             center_name=center_name,
@@ -311,7 +319,7 @@ def select_and_plan_week(
             "archetype": rules["archetype"],
             "content_type": "post",
             "rationale": f"Servizio {service_name} del {c['giorno']}",
-            "material_checklist": rules["checklist"],
+            "material_checklist": checklist,
             "caption_text": caption,
             "hashtags": hashtags,
         })
@@ -320,14 +328,81 @@ def select_and_plan_week(
     return results
 
 
-def _generate_caption_and_hashtags(
+async def _personalize_checklist_instructions(
+    service_name: str,
+    archetype: str,
+    base_checklist: list[dict],
+) -> list[dict]:
+    """
+    Gemini personalizza le istruzioni foto per il servizio specifico.
+    Python ha già deciso quante foto e di che tipo — Gemini scrive solo
+    le istruzioni concrete adatte a quel trattamento esatto.
+    Fallback: istruzioni base se Gemini fallisce.
+    """
+    items_desc = "\n".join([
+        f"- Foto {i+1}: id='{item['id']}', label='{item['label']}'"
+        for i, item in enumerate(base_checklist)
+    ])
+
+    prompt = f"""Sei un fotografo esperto di beauty content per Instagram italiano.
+
+Scrivi istruzioni pratiche per fotografare questo trattamento estetico:
+
+SERVIZIO: {service_name}
+TIPO DI POST: {archetype}
+FOTO DA SCATTARE:
+{items_desc}
+
+Per OGNI foto scrivi 2-3 frasi che spiegano:
+- Come posizionare il soggetto (mano, viso, corpo, macchinario...)
+- Dove mettere la luce (finestra, soffitto, flash...)
+- Che angolazione o distanza usare
+
+Le istruzioni devono essere SPECIFICHE per "{service_name}", pratiche e comprensibili
+anche per chi non è fotografo. Niente frasi generiche come "buona luce" o "ambiente curato".
+
+Rispondi SOLO con JSON:
+{{
+  "instructions": [
+    {{"id": "...", "instructions": "..."}},
+    ...
+  ]
+}}"""
+
+    try:
+        client = _get_client()
+        response = await client.aio.models.generate_content(
+            model=MODEL_TEXT,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.4,
+                response_mime_type="application/json",
+            ),
+        )
+        data = _parse_json_response(response.text)
+        items_map = {item["id"]: item["instructions"] for item in data.get("instructions", [])}
+
+        # Merge: struttura base Python + istruzioni personalizzate Gemini
+        result = []
+        for base_item in base_checklist:
+            item_copy = dict(base_item)
+            if base_item["id"] in items_map and items_map[base_item["id"]].strip():
+                item_copy["instructions"] = items_map[base_item["id"]]
+            result.append(item_copy)
+        return result
+    except Exception as e:
+        logger.error(f"Errore personalizzazione checklist per {service_name}: {e}")
+        return base_checklist  # fallback istruzioni base
+
+
+async def _generate_caption_and_hashtags(
     service_name: str,
     archetype: str,
     center_name: str,
     tone_of_voice: str,
     brand_keywords: list,
 ) -> tuple[str, list[str]]:
-    """Chiama Gemini solo per caption e hashtag."""
+    """Chiama Gemini per caption e hashtag."""
 
     archetype_hint = {
         "before_after": "mostra la trasformazione prima/dopo",
@@ -365,7 +440,7 @@ Rispondi SOLO con JSON valido:
 
     try:
         client = _get_client()
-        response = client.models.generate_content(
+        response = await client.aio.models.generate_content(
             model=MODEL_TEXT,
             contents=prompt,
             config=types.GenerateContentConfig(

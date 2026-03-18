@@ -146,7 +146,7 @@ async def run_weekly_pipeline(tenant_id: str, week_start_override: str | None = 
         return {"tenant_id": tenant_id, "error": "tenant not found"}
 
     # Gemini seleziona e pianifica
-    selected = select_and_plan_week(
+    selected = await select_and_plan_week(
         appointments=appointments,
         tenant=tenant,
         week_start_str=str(week_start),
