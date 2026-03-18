@@ -246,90 +246,157 @@ def _get_service_rules(service_name: str) -> dict:
 def _build_brand_system_prompt(tenant: dict) -> str:
     """
     Assembla il system instruction completo del brand da passare a TUTTE
-    le chiamate Gemini. Così ogni output (caption, istruzioni foto, brief,
-    immagine) rispetta automaticamente voce, stile e regole del centro.
+    le chiamate Gemini. Copre identità, persona, voce, contenuto e visual.
     """
     sp = tenant.get("social_profile") or {}
-    name = tenant.get("display_name") or tenant.get("name", "Centro Estetico")
+    name = tenant.get("display_name") or sp.get("center_name") or tenant.get("name", "Centro Estetico")
     bio = (tenant.get("bio") or "").strip()
 
-    # Identità
+    # ── Identità ──
     tagline = sp.get("tagline") or ""
     city = sp.get("city") or ""
+    founded = sp.get("founded_year")
     positioning = sp.get("price_positioning") or "mid-range"
     usp = sp.get("unique_selling_point") or ""
+    mission = sp.get("mission") or ""
 
-    # Audience
-    target = sp.get("target_description") or "Donne 25-45 anni che si prendono cura di sé"
+    # ── Persona ──
+    persona_name = sp.get("persona_name") or ""
+    persona_age = sp.get("persona_age_range") or "25-45"
+    persona_desc = sp.get("persona_description") or "Donne che si prendono cura di sé"
+    pain_points = sp.get("persona_pain_points") or []
+    desires = sp.get("persona_desires") or []
 
-    # Voce
+    # ── Voce ──
     tone = sp.get("tone_of_voice") or "caldo e professionale"
     if isinstance(tone, list):
         tone = ", ".join(tone)
+    traits = sp.get("personality_traits") or []
     comm_style = sp.get("communication_style") or "informale, dai del tu"
     emoji_usage = sp.get("emoji_usage") or "moderato (2-3 per post)"
-
+    caption_length = sp.get("caption_length") or "medium"
+    cta_style = {
+        "link_in_bio": "Prenota ora → link in bio",
+        "phone": "Chiamaci per prenotare",
+        "whatsapp": "Scrivici su WhatsApp",
+        "dm": "Scrivici in DM",
+    }.get(sp.get("cta_style") or "link_in_bio", "Prenota ora → link in bio")
     avoid = sp.get("avoid_words") or ["ogni trattamento", "la costanza premia", "risultati visibili"]
     avoid_str = ", ".join(f'"{w}"' for w in avoid)
-
     signatures = sp.get("signature_phrases") or []
-    sig_block = "\n".join(f"  • {p}" for p in signatures) if signatures else "  (nessuna frase impostata)"
+    sig_block = "\n".join(f"  • {p}" for p in signatures) if signatures else "  (nessuna)"
+    voice_memo = sp.get("brand_voice_memo") or ""
 
-    # Contenuto
+    # ── Contenuto ──
     pillars = sp.get("content_pillars") or [
         "Risultati dei trattamenti", "Educazione beauty", "Behind the scenes", "Promozioni"
     ]
-    pillars_str = "\n".join(f"  • {p}" for p in pillars)
-
+    content_mix = sp.get("content_mix") or {}
     brand_hashtags = sp.get("brand_hashtags") or []
-    hashtags_str = " ".join(brand_hashtags) if brand_hashtags else "(nessuno impostato)"
+    niche_hashtags = sp.get("niche_hashtags") or []
+    hashtags_str = " ".join(brand_hashtags) if brand_hashtags else "(nessuno)"
+    niche_str = " ".join(niche_hashtags) if niche_hashtags else ""
+    hashtags_per_post = sp.get("hashtags_per_post") or 10
 
-    # Visivo
-    visual_style = sp.get("style") or "minimal e professionale"
+    # ── Visivo ──
+    visual_style = sp.get("visual_style") or sp.get("style") or "minimal"
+    photo_style = {
+        "bright_natural": "luminose e naturali, luce dalla finestra, colori vivi",
+        "warm_moody": "calde e atmosferiche, toni ambrati, ombre morbide",
+        "clean_white": "pulite su sfondo bianco, lighting flat, look clinico-professionale",
+        "dark_luxury": "scure e lussuose, contrasti forti, atmosfera premium",
+    }.get(sp.get("photo_style") or "bright_natural", "luminose e naturali")
+    typo_style = {
+        "serif_elegant": "serif elegante (es. Playfair Display, Georgia)",
+        "sans_modern": "sans-serif moderno (es. Inter, Helvetica)",
+        "mixed": "misto: serif per titoli, sans per body",
+    }.get(sp.get("typography_style") or "serif_elegant", "serif elegante")
     primary_color = tenant.get("theme_primary_color") or "#6b2d4e"
     secondary_color = tenant.get("theme_secondary_color") or "#c9a0b4"
+    accent_color = sp.get("accent_color") or ""
+    bg_color = sp.get("background_color") or "#fdf5f0"
 
+    # ── Assembla ──
     lines = [
         f'Sei il social media manager esclusivo di "{name}".',
-        "La tua missione: creare contenuti autentici che sembrino scritti da una persona vera, non da un robot.",
+        "La tua missione: creare contenuti che sembrino scritti da una persona vera che conosce il centro — mai da un robot.",
         "",
         "━━━ IDENTITÀ ━━━",
         f"Centro: {name}",
     ]
     if city:
-        lines.append(f"Città: {city}")
+        identity_line = f"Città: {city}"
+        if founded:
+            identity_line += f" — aperto dal {founded}"
+        lines.append(identity_line)
     if tagline:
         lines.append(f'Tagline: "{tagline}"')
     if bio:
-        lines.append(f"Presentazione: {bio}")
+        lines.append(f"Descrizione: {bio}")
+    if mission:
+        lines.append(f"Mission: {mission}")
     lines.append(f"Posizionamento: {positioning}")
     if usp:
-        lines.append(f"Punto di forza unico: {usp}")
+        lines.append(f"Unicità: {usp}")
+
+    lines += ["", "━━━ CLIENTE IDEALE ━━━"]
+    persona_header = f"{persona_name} — " if persona_name else ""
+    lines.append(f"{persona_header}{persona_age} anni — {persona_desc}")
+    if pain_points:
+        lines.append("Frustrata da: " + ", ".join(pain_points))
+    if desires:
+        lines.append("Vuole: " + ", ".join(desires))
+
     lines += [
         "",
-        "━━━ CLIENTELA TARGET ━━━",
-        f"  {target}",
-        "",
         "━━━ VOCE DEL BRAND ━━━",
+        f"Personalità: {', '.join(traits) if traits else tone}",
         f"Tono: {tone}",
-        f"Stile comunicativo: {comm_style}",
+        f"Stile: {comm_style}",
         f"Emoji: {emoji_usage}",
+        f"Lunghezza caption: {caption_length} (~{'50' if caption_length=='short' else '100' if caption_length=='medium' else '150'} parole)",
+        f"CTA standard: \"{cta_style}\"",
         "",
-        "Frasi tipiche del brand (usale come ispirazione, non copiare letteralmente):",
+        "Frasi tipiche del brand (ispiratene, non copiare letteralmente):",
         sig_block,
         "",
-        f"NON usare MAI queste parole o frasi: {avoid_str}",
-        'NON usare mai frasi generiche come: "ogni trattamento è unico", "la cura parte da te", "risultati che parlano da soli", "prendersi cura di sé"',
+        f"NON usare MAI: {avoid_str}",
+        'NON usare mai: "ogni trattamento è unico", "la cura parte da te", "risultati che parlano da soli", "benessere a 360°"',
+    ]
+
+    if voice_memo:
+        lines += ["", "Nota dalla titolare:", f'  "{voice_memo}"']
+
+    lines += [
         "",
         "━━━ PILASTRI EDITORIALI ━━━",
-        pillars_str,
+    ]
+    for p in pillars:
+        pct = ""
+        key_map = {"risultati": "results", "educaz": "education", "dietro": "behind_scenes", "promo": "promo"}
+        for k, v in key_map.items():
+            if k in p.lower() and v in content_mix:
+                pct = f" ({content_mix[v]}%)"
+                break
+        lines.append(f"  • {p}{pct}")
+
+    lines += [
         "",
-        "━━━ HASHTAG FISSI DEL BRAND (includili sempre) ━━━",
-        f"  {hashtags_str}",
+        f"━━━ HASHTAG ({hashtags_per_post} per post) ━━━",
+        f"Fissi (sempre): {hashtags_str}",
+    ]
+    if niche_str:
+        lines.append(f"Di nicchia (scegli pertinenti): {niche_str}")
+
+    lines += [
         "",
         "━━━ STILE VISIVO ━━━",
-        f"Stile grafico: {visual_style}",
-        f"Colori brand: {primary_color} (primario), {secondary_color} (secondario)",
+        f"Grafico: {visual_style}",
+        f"Foto: {photo_style}",
+        f"Tipografia: {typo_style}",
+        f"Colori: {primary_color} (primario) · {secondary_color} (secondario)" +
+        (f" · {accent_color} (accento)" if accent_color else "") +
+        f" · {bg_color} (sfondo)",
     ]
 
     return "\n".join(lines)
