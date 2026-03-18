@@ -807,14 +807,17 @@ async def generate_visual_brief(
     """
     photos = content_record.get("photos_input") or []
     archetype = content_record.get("archetype", "editorial")
-    service_name = content_record.get("service_name", "trattamento")
+    # service_name viene dal join service:services(name) — NON dal campo diretto
+    service_data = content_record.get("service") or {}
+    service_name = service_data.get("name") or content_record.get("service_name") or ""
+    service_desc = service_data.get("descrizione_breve") or ""
+    service_benefits = service_data.get("benefici") or ""
     notes = content_record.get("estetista_notes") or ""
     consent = content_record.get("client_consent", "details_only")
 
     brand_system_prompt = _build_brand_system_prompt(tenant)
     social_profile = tenant.get("social_profile") or {}
     center_name = tenant.get("display_name") or tenant.get("name", "Centro Estetico")
-    style = social_profile.get("style", "minimal")
     primary_color = tenant.get("theme_primary_color") or "#6b2d4e"
     secondary_color = tenant.get("theme_secondary_color") or "#c9a0b4"
 
@@ -861,13 +864,19 @@ async def generate_visual_brief(
         "promo":         "Creare un post d'impatto che invoglia subito a prenotare",
     }.get(archetype, "Creare un post bello e coerente col brand")
 
+    service_context = ""
+    if service_desc:
+        service_context += f"Descrizione servizio: {service_desc}\n"
+    if service_benefits:
+        service_context += f"Benefici: {service_benefits}\n"
+
     prompt = f"""Stai per creare un post per: {center_name}
 Servizio: {service_name}
-Tipo di post: {archetype}
+{service_context}Tipo di post: {archetype}
 {f"Note dell'estetista: {notes}" if notes else ""}
 Regola privacy: {consent_instruction}
 
-PALETTE BRAND (usa ESATTAMENTE questi colori, descrivendoli in italiano):
+PALETTE BRAND (descrivi i colori con parole, non codici):
 - Primario: {primary_color}
 - Secondario: {secondary_color}
 - Accento: {accent_color}
@@ -876,31 +885,28 @@ PALETTE BRAND (usa ESATTAMENTE questi colori, descrivendoli in italiano):
 STILE FOTO: {photo_style_desc}
 TIPOGRAFIA: {typo_desc}
 
-OBIETTIVO DEL POST: {archetype_goal_it}
+OBIETTIVO: {archetype_goal_it}
 
-Guarda le foto e immagina liberamente il post più bello e d'impatto che puoi creare
-per questo servizio con queste foto. Hai libertà creativa completa su layout e composizione.
-
-Descrivi IN ITALIANO SEMPLICE la tua idea — come se spiegassi a un'amica cosa stai
-per fare. Struttura così:
+Guarda le foto e descrivi IN ITALIANO SEMPLICE il post che creerai.
+Hai libertà creativa completa su layout, composizione ed elementi grafici.
 
 📐 IDEA
-(In 1-2 frasi: che tipo di composizione hai scelto e perché funziona per questo contenuto)
+(1-2 frasi: che composizione hai scelto e perché funziona per queste foto)
 
 🎨 STILE
-(Colori usati — descritti in parole, non codici. Trattamento foto. Atmosfera)
+(Colori in parole normali. Atmosfera. Elementi grafici decorativi se presenti)
 
-✍️ TESTO
-(Cosa scrivi, dove lo metti, con che font/stile)
+✍️ TESTI IN GRAFICA
+(SOLO i testi che appariranno visivamente sulla grafica: nome servizio, nome centro, eventuali label come PRIMA/DOPO o titoli. NON scrivere la caption del post — quella è già gestita separatamente)
 
 ✨ EFFETTO
-(Che sensazione trasmetterà? Cosa farà fermare chi scorre il feed?)
+(Che sensazione trasmette? Perché ferma chi scorre il feed?)
 
 Regole:
-- Italiano semplice, ZERO termini tecnici ("overlay", "compositing", "gradient" non esistono)
-- Descrivi i colori con parole normali (es. "viola profondo", "rosa antico", "crema")
-- Max 150 parole
-- Usa SOLO le foto fornite — non inventare elementi assenti"""
+- Italiano semplice, zero termini tecnici
+- I colori in parole normali (es. "viola profondo", "crema caldo", "rosa antico")
+- Max 130 parole
+- SOLO le foto fornite — non inventare"""
 
     try:
         client = _get_client()
@@ -934,13 +940,16 @@ async def generate_image(
     """
     photos = content_record.get("photos_input") or []
     archetype = content_record.get("archetype", "editorial")
-    service_name = content_record.get("service_name", "trattamento")
+    # service_name e dati servizio dal join service:services(...)
+    service_data = content_record.get("service") or {}
+    service_name = service_data.get("name") or content_record.get("service_name") or ""
+    service_desc = service_data.get("descrizione_breve") or ""
+    service_benefits = service_data.get("benefici") or ""
     brief = content_record.get("visual_brief_override") or content_record.get("visual_brief") or ""
 
     brand_system_prompt = _build_brand_system_prompt(tenant)
     social_profile = tenant.get("social_profile") or {}
     center_name = tenant.get("display_name") or tenant.get("name", "Centro Estetico")
-    style = social_profile.get("style", "minimal")
     primary_color = tenant.get("theme_primary_color") or "#6b2d4e"
     secondary_color = tenant.get("theme_secondary_color") or "#c9a0b4"
     consent = content_record.get("client_consent", "details_only")
@@ -1009,23 +1018,51 @@ async def generate_image(
             f"{graphic_direction}"
         )
 
+    # Contesto servizio opzionale per arricchire la generazione
+    service_context_en = ""
+    if service_desc:
+        service_context_en += f"Service description: {service_desc}\n"
+    if service_benefits:
+        service_context_en += f"Key benefits: {service_benefits}\n"
+
+    # Testi obbligatori nella grafica — solo quelli, non altri
+    required_texts = f"'{center_name}'"
+    if service_name:
+        required_texts += f" and '{service_name}'"
+
     prompt = (
-        f"You are a creative graphic designer making an Instagram post for an Italian beauty center.\n\n"
-        f"CENTER: {center_name}\n"
-        f"SERVICE: {service_name}\n"
-        f"PHOTO TREATMENT: {photo_treatment}\n"
-        f"TYPOGRAPHY: {font_style}\n"
-        f"BRAND COLORS (use EXACTLY these — never substitute):\n"
-        f"  Primary: {primary_color} · Secondary: {secondary_color} "
-        f"· Accent: {accent_color} · Background: {bg_color}\n"
-        f"OVERALL FEEL: {style_feel}\n"
+        f"You are a senior creative director at a top-tier Italian beauty brand agency. "
+        f"Your job is to create an Instagram post that looks like it belongs in a premium beauty magazine — "
+        f"not a generic template, not clip art. Every element must feel intentional and on-brand.\n\n"
+
+        f"BRAND: {center_name}\n"
+        f"SERVICE: {service_name or '(see photos)'}\n"
+        f"{service_context_en}"
         f"PRIVACY: {consent_instruction}\n\n"
+
+        f"BRAND IDENTITY:\n"
+        f"  Overall feel: {style_feel}\n"
+        f"  Photo treatment: {photo_treatment}\n"
+        f"  Typography: {font_style}\n"
+        f"  Colors (EXACT — never substitute or approximate):\n"
+        f"    Primary {primary_color} · Secondary {secondary_color} · Accent {accent_color} · Background {bg_color}\n\n"
+
         f"{composition}\n\n"
-        f"NON-NEGOTIABLE RULES:\n"
-        f"- Use ONLY the photos given. Never add or invent photos.\n"
-        f"- Brand colors must match EXACTLY.\n"
-        f"- Must include center name '{center_name}' and service name '{service_name}'.\n"
-        f"- Result must be publication-ready, 1:1 square format (1080×1080px).\n\n"
+
+        f"VISUAL QUALITY STANDARDS:\n"
+        f"- Composition must have a clear visual hierarchy — the eye should travel deliberately\n"
+        f"- Typography placement must feel considered, not just dropped in a corner\n"
+        f"- Use of negative space should be intentional — breathing room OR density, not random\n"
+        f"- The photo(s) must be the hero — enhance them, don't bury them under graphics\n"
+        f"- Color usage must feel like a creative choice, not an afterthought\n"
+        f"- The result must make someone stop mid-scroll and look twice\n\n"
+
+        f"ABSOLUTE RULES:\n"
+        f"- Use ONLY the photos provided — never add, generate, or imply photos not given\n"
+        f"- Brand colors EXACTLY as specified — zero deviation\n"
+        f"- Include these text elements: {required_texts}\n"
+        f"- 1:1 square format, publication-ready\n\n"
+
         f"Create the image now."
     )
 
