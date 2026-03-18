@@ -380,40 +380,42 @@ async def generate_image(
         except Exception as e:
             logger.warning(f"Impossibile scaricare foto {url}: {e}")
 
-    # Costruisce prompt immagine
-    archetype_instructions = {
+    # Fallback se non c'è brief: istruzioni base per archetype
+    archetype_fallback = {
         "before_after": (
-            "Create a before/after split composition. "
-            "First image is BEFORE (left side), second image is AFTER (right side). "
-            "Add elegant labels 'PRIMA' and 'DOPO' in serif font. "
-            "Add a thin rose gold divider between the photos. "
-            "Enhance the AFTER photo: +15% brightness, +10% saturation."
+            "Create a before/after split composition using the provided photos. "
+            "Left side BEFORE, right side AFTER. Elegant 'PRIMA'/'DOPO' labels in serif font. "
+            "Thin rose gold divider. Enhance AFTER photo: +15% brightness."
         ),
         "editorial": (
             "Create a high-fashion editorial Instagram post. "
-            "Place the photo centrally on a champagne/cream background. "
-            "Add the service name as an elegant serif title. "
+            "Photo centrally on champagne background. Service name as elegant serif title. "
             "Style: Vogue Beauty meets Italian luxury."
         ),
         "educational": (
             "Create an elegant informational post. "
-            "Split the image: photo on left (60%), text area on right (40%). "
-            "Add 3-4 key benefit bullet points on the right side. "
+            "Photo on left (60%), key benefit bullet points on right (40%). "
             "Clean, readable, professional."
         ),
         "behind_scenes": (
             "Create a warm behind-the-scenes aesthetic post. "
-            "Natural, authentic feel. Add a subtle warm golden overlay. "
-            "Include a simple branded text element."
+            "Natural, authentic feel. Subtle warm golden overlay. Simple branded text element."
         ),
         "promo": (
             "Create a promotional post with clear call-to-action. "
-            "Bold, eye-catching composition. "
-            "Include a prominent 'Prenota ora' button element."
+            "Bold, eye-catching. Include a 'Prenota ora' button element."
         ),
     }
 
-    img_instruction = archetype_instructions.get(archetype, archetype_instructions["editorial"])
+    # Se c'è un brief approvato, lui è l'unica fonte di verità per la composizione.
+    # Le istruzioni archetype vengono usate SOLO come fallback se manca il brief.
+    if brief:
+        composition_directive = (
+            f"VISUAL PLAN — follow this exactly, this is what the user approved:\n{brief}"
+        )
+    else:
+        fallback = archetype_fallback.get(archetype, archetype_fallback["editorial"])
+        composition_directive = f"COMPOSITION (no brief available, use this as guide):\n{fallback}"
 
     prompt = (
         f"You are a luxury beauty brand graphic designer for an Italian aesthetic center.\n\n"
@@ -423,14 +425,14 @@ async def generate_image(
         f"BRAND COLORS: primary {primary_color}, secondary {secondary_color}, "
         f"background champagne #fdf5f0\n"
         f"PRIVACY: {consent_instruction}\n\n"
-        f"VISUAL PLAN (follow this exactly):\n{brief}\n\n"
-        f"COMPOSITION TYPE: {img_instruction}\n\n"
+        f"{composition_directive}\n\n"
         f"BRANDING REQUIREMENTS:\n"
         f"- Add center name '{center_name}' in a bottom branding bar\n"
         f"- Use primary color {primary_color} for the branding bar\n"
         f"- Text on branding bar in white, elegant serif font\n"
         f"- Overall: Instagram-ready 1:1 square format, 1080x1080px equivalent\n"
         f"- Style inspiration: Charlotte Tilbury, Dior Beauty — luxury accessible\n\n"
+        f"IMPORTANT: use ONLY the photos provided. Do NOT invent or hallucinate additional photos.\n\n"
         f"Create a stunning, professional social media post."
     )
 
