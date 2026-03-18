@@ -261,4 +261,4 @@ async def save_brand_profile(
 
 @router.get("/social/health")
 async def health():
-    return {"status": "ok", "service": "social-content-ai", "version": "4.0-archetype-rotation"}
+    return {"status": "ok", "service": "social-content-ai", "version": "4.1-layout-variants"}
