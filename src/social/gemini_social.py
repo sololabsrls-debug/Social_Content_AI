@@ -1014,160 +1014,38 @@ async def generate_image(
             logger.warning(f"Impossibile scaricare foto {url}: {e}")
 
     sp = social_profile  # alias locale
-    visual_style = (sp.get("visual_style") or sp.get("style") or "minimal").lower().split()[0]
-    typo_style = sp.get("typography_style") or "serif_elegant"
     accent_color = sp.get("accent_color") or secondary_color
     bg_color = sp.get("background_color") or "#fdf5f0"
 
-    brand_characteristics = _STYLE_CHARACTERISTICS.get(visual_style, _STYLE_CHARACTERISTICS["minimal"])
-    typography_rules = _TYPOGRAPHY_RULES.get(typo_style, _TYPOGRAPHY_RULES["serif_elegant"])
-    layout_system = _ARCHETYPE_LAYOUTS.get(archetype, _ARCHETYPE_LAYOUTS["editorial"])
-    treatment_area = _get_treatment_area(service_name)
-
-    # Testo richiesto nella grafica — solo nome servizio
-    required_text_line = (
-        f"- Required text: \"{service_name}\" (service name, primary text element)\n"
-        if service_name else ""
+    service_text = f'"{service_name}"' if service_name else ""
+    brief_section = (
+        f"Visual brief approved by the user — follow it precisely:\n{brief}\n\n"
+        if brief else ""
     )
-    optional_text_note = (
-        f"- Optional micro-text: \"IL RISULTATO\" · \"{center_name}\"\n"
-        f"- Text hierarchy: service name = primary · 'IL RISULTATO' = micro-label · brand name = smallest\n"
-        f"- Text must be short, elegant, highly legible, and always secondary to the photo\n"
-        f"- Do NOT add slogans, promo language, descriptions, hashtags, prices, or CTAs\n"
-    )
-
-    if brief:
-        layout_section = (
-            f"APPROVED VISUAL BRIEF — the user already approved this, follow it precisely:\n{brief}"
-        )
-    else:
-        layout_section = (
-            f"APPROVED LAYOUT SYSTEM — choose only one of these, do not invent others:\n\n"
-            f"{layout_system}"
-        )
 
     prompt = (
-        # ── LOCKED PHOTO RULE — prima di tutto ────────────────────────
-        f"LOCKED PHOTO RULE — APPLY FIRST\n\n"
-        f"The attached photo is LOCKED, AUTHENTIC, and IMMUTABLE.\n"
-        f"It is a real treatment-result photo provided by the beauty center.\n"
-        f"Do NOT modify the photo in any way.\n\n"
-        f"Forbidden:\n"
-        f"- Do NOT retouch, redraw, regenerate, enhance, restyle, or reinterpret the photo\n"
-        f"- Do NOT change composition, pose, anatomy, skin, lashes, nails, hair, or lighting\n"
-        f"- Do NOT add filters, blur, recoloring, beauty effects, or background replacement\n"
-        f"- Do NOT move, crop into, cover, distort, or visually interfere with the treatment result\n\n"
-        f"The photo must remain exactly as provided.\n"
-        f"Your task is ONLY to add a graphic overlay layer on top, "
-        f"like premium editorial design printed over a photograph.\n\n"
+        f"The attached photo is LOCKED and must NOT be modified in any way. "
+        f"Do not redraw, retouch, recolor, restyle, or alter it. "
+        f"The photo stays exactly as provided — pixel perfect.\n\n"
 
-        f"---\n\n"
+        f"Your task: add a graphic design layer on top of this photo to create a 1:1 Instagram post "
+        f"for an Italian beauty center. The photo must always fill the full frame — never shrink it.\n\n"
 
-        # ── TASK ───────────────────────────────────────────────────────
-        f"TASK\n\n"
-        f"Create a 1:1 Instagram post for an Italian beauty center.\n"
-        f"The final image must feel refined, minimal, luxurious, and brand-consistent.\n"
-        f"The outcome must look like part of a recognizable editorial series, "
-        f"not a one-off creative experiment.\n\n"
-
-        f"---\n\n"
-
-        # ── BRAND ──────────────────────────────────────────────────────
-        f"BRAND\n\n"
-        f"Brand name: {center_name}\n"
+        f"Brand: {center_name}\n"
         f"Service: {service_name or '(see photo)'}\n"
-        f"Privacy rule: {consent_instruction}\n\n"
+        f"Privacy: {consent_instruction}\n\n"
 
-        f"---\n\n"
+        f"Brand colors to use in the graphic layer:\n"
+        f"  Primary {primary_color} · Secondary {secondary_color} · "
+        f"Accent {accent_color} · Background {bg_color}\n\n"
 
-        # ── CORE BRAND SYSTEM ──────────────────────────────────────────
-        f"CORE BRAND SYSTEM — MUST REMAIN CONSISTENT ACROSS ALL POSTS\n\n"
-        f"Use the same graphic language every time.\n"
-        f"The design must look like it belongs to one ongoing brand series.\n\n"
-        f"Non-negotiable brand characteristics:\n"
-        f"{brand_characteristics}\n"
-        f"- Strong continuity from post to post\n\n"
-        f"Do NOT create a new visual style for each image.\n"
-        f"Do NOT improvise a different aesthetic direction.\n"
-        f"Do NOT mix unrelated graphic ideas.\n\n"
+        + (f"Text to include: {service_text}\n\n" if service_text else "")
+        + brief_section +
 
-        f"---\n\n"
+        f"Be creative with the graphic layer — you have full freedom on layout, typography, "
+        f"ornaments, and composition. Make it elegant and on-brand.\n\n"
 
-        # ── FIXED VISUAL IDENTITY ──────────────────────────────────────
-        f"FIXED VISUAL IDENTITY\n\n"
-        f"Typography:\n"
-        f"{typography_rules}\n\n"
-        f"Brand colors — USE EXACTLY THESE:\n"
-        f"- Primary: {primary_color}\n"
-        f"- Secondary: {secondary_color}\n"
-        f"- Accent: {accent_color}\n"
-        f"- Background: {bg_color}\n\n"
-        f"Graphic language:\n"
-        f"- Thin lines only\n"
-        f"- Very subtle luxury detailing\n"
-        f"- Generous breathing space\n"
-        f"- Maximum 1 refined decorative element\n"
-        f"- Typography must carry the composition\n"
-        f"- Empty space is intentional and premium\n\n"
-        f"Do NOT use: busy decoration, multiple ornaments, oversized stickers, "
-        f"loud textures, dramatic effects, collage look, trendy social-media clutter.\n\n"
-
-        f"---\n\n"
-
-        # ── MANDATORY COMPOSITION LOGIC ────────────────────────────────
-        f"MANDATORY COMPOSITION LOGIC\n\n"
-        f"Before placing any graphic element, visually identify the treatment result area.\n"
-        f"For this service, the protected focal zone is: {treatment_area}.\n\n"
-        f"Create a protected safe area around the treatment result:\n"
-        f"- No text over the treatment area\n"
-        f"- No line, ornament, gradient edge, badge, icon, or frame edge may interfere "
-        f"with the treated area\n"
-        f"- All graphic content must stay in peripheral negative space only\n\n"
-        f"Preferred placement zones: top margin, bottom margin, outer side margins, "
-        f"empty corners, translucent edge strip only if it does NOT cover treatment details.\n\n"
-        f"If the photo has little or no negative space: reduce text size, use only one text "
-        f"block, prioritize visibility of the treatment result over design ambition.\n\n"
-
-        f"---\n\n"
-
-        # ── LAYOUT SYSTEM ──────────────────────────────────────────────
-        f"{layout_section}\n\n"
-        f"Important: choose the most suitable layout based on protection of the treatment result. "
-        f"Prefer consistency over novelty.\n\n"
-
-        f"---\n\n"
-
-        # ── TEXT RULES ─────────────────────────────────────────────────
-        f"TEXT RULES\n\n"
-        f"{required_text_line}"
-        f"{optional_text_note}\n"
-
-        f"---\n\n"
-
-        # ── ERROR PREVENTION ───────────────────────────────────────────
-        f"ERROR PREVENTION RULES\n\n"
-        f"Avoid these common mistakes:\n"
-        f"- covering the treatment result with text or graphics\n"
-        f"- making the graphic too large or too loud\n"
-        f"- using too many decorative elements\n"
-        f"- letting the overlay compete with the treatment result\n"
-        f"- turning the image into a poster instead of a premium beauty post\n"
-        f"- making the design feel generic, trendy, or inconsistent\n\n"
-        f"If the photo is visually busy: simplify further, use fewer elements, "
-        f"use smaller typography, keep more empty space, protect the result first.\n\n"
-
-        f"---\n\n"
-
-        # ── FINAL OUTPUT ───────────────────────────────────────────────
-        f"FINAL OUTPUT REQUIREMENTS\n\n"
-        f"- 1:1 square Instagram-ready composition\n"
-        f"- Use only the provided photo — do not generate new imagery\n"
-        f"- Do not alter the photo\n"
-        f"- Preserve full visibility of the treatment result\n"
-        f"- Apply only the approved brand system\n"
-        f"- Final result must feel elegant, premium, minimal, and consistent "
-        f"with a luxury beauty brand series\n\n"
-        f"Create the final graphic overlay now."
+        f"Output: 1:1 square, publication-ready."
     )
 
     try:
