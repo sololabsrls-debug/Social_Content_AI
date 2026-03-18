@@ -153,7 +153,7 @@ def select_and_plan_week(
         return []
 
     prompt = f"""Sei un esperto di social media per centri estetici italiani.
-Il tuo compito è creare un piano editoriale settimanale SPECIFICO per i servizi elencati.
+Il tuo compito è creare un piano editoriale settimanale per i servizi elencati.
 
 CENTRO: {center_name}
 BIO: {bio}
@@ -166,42 +166,95 @@ POST DA PIANIFICARE: massimo {content_frequency}
 APPUNTAMENTI DISPONIBILI:
 {json.dumps(appt_summary, ensure_ascii=False, indent=2)}
 
-GUIDA ARCHETIPI — scegli quello più adatto al servizio:
-- before_after: laser (risultato pelle), nail art, laminazione, microblading, tinta sopracciglia
-- educational: laser (spiegare come funziona), trattamenti viso, servizi poco noti
-- editorial: semipermanente, pedicure, manicure, pulizia viso
-- behind_scenes: qualsiasi servizio — mostra il processo, i prodotti, le mani al lavoro
-- promo: quando vuoi spingere prenotazioni su un servizio specifico
+════════════════════════════════════════
+KNOWLEDGE BASE SERVIZI ESTETICI
+Usa questa guida per determinare archetype, numero di foto, label e istruzioni.
+════════════════════════════════════════
 
-REGOLE OBBLIGATORIE:
-1. Seleziona massimo {content_frequency} appuntamenti
-2. VARIA gli archetipi — NON usare lo stesso per tutti
-3. Distribuisci i post in giorni diversi della settimana
-4. Ogni caption DEVE menzionare il nome esatto del servizio
+UNGHIE — MANI E PIEDI:
+- Semipermanente mani / Semipermanente piedi / Smalto semipermanente / Manicure / Pedicure:
+  archetype CORRETTO: editorial
+  foto: 1 sola
+  label: "Foto smalto [mani/piedi]" oppure "Foto risultato manicure"
+  istruzioni: "Appoggia la mano (o il piede) su un asciugamano bianco o sul lettino. Tieni il telefono a una spanna dall'unghia e scatta dall'alto. Cerca luce dalla finestra, non quella del soffitto."
+- Nail art / Decorazioni unghie / Ricostruzione unghie:
+  archetype CORRETTO: editorial
+  foto: 1 sola — ravvicinata delle unghie
+  label: "Foto nail art"
 
-REGOLA FONDAMENTALE PER LE CAPTION:
-- Scrivi una caption SPECIFICA per il servizio indicato
-- NON usare testi generici tipo "ogni trattamento è un passo verso il tuo miglior viso"
-- Se il servizio è "Laser Ascelle": parla di laser, pelle liscia, addio rasatura
-- Se il servizio è "Semipermanente mani": parla di unghie, colore, durata
-- Se il servizio è "Pulizia viso": parla di pelle, pori, luminosità
-- Termina SEMPRE con una CTA specifica (prenota, chiama, link in bio)
-- Includi 2-3 emoji pertinenti al servizio
-- Max 120 parole
+CIGLIA E SOPRACCIGLIA:
+- Laminazione ciglia / Extension ciglia / Lifting ciglia:
+  archetype CORRETTO: before_after
+  foto: 2 — PRIMA + DOPO
+  label PRIMA: "Foto ciglia PRIMA"
+  label DOPO: "Foto ciglia DOPO"
+  istruzioni PRIMA: "Fotografa l'occhio aperto senza mascara. Tieni il telefono vicino al viso, cerca buona luce dalla finestra. Stesso angolo che userai per il DOPO."
+  istruzioni DOPO: "Stesso angolo della foto PRIMA, subito dopo il trattamento. Occhi aperti, luce dalla finestra."
+- Microblading / Laminazione sopracciglia / Tinta sopracciglia / Nanoblading:
+  archetype CORRETTO: before_after
+  foto: 2 — PRIMA + DOPO
+  label PRIMA: "Foto sopracciglia PRIMA"
+  label DOPO: "Foto sopracciglia DOPO"
+  istruzioni: "Fotografa il viso da davanti all'altezza degli occhi, buona luce. Stesse condizioni nelle due foto."
 
-REGOLA FONDAMENTALE PER LE ISTRUZIONI MATERIALE:
-Scrivi come se stessi spiegando a un'amica NON fotografa cosa fare.
-Sii SPECIFICA per il servizio — non istruzioni generiche.
-Spiega: cosa fotografare esattamente, come tenere il telefono, dove farlo.
-NON usare: "ISO", "bokeh", "angolazione", "composizione", "inquadratura".
-USA invece: "vicino alla finestra", "a una spanna di distanza", "tieni dritto il telefono".
-Max 3 frasi per item. Tono rassicurante, come un consiglio tra colleghe.
+LASER ED EPILAZIONE:
+- Laser qualsiasi zona / Luce pulsata:
+  archetype CORRETTO: educational o before_after (NO per zone intime)
+  se educational: 1 foto del macchinario in uso
+  label: "Foto durante il trattamento laser"
+  istruzioni: "Fotografa il macchinario mentre viene usato sulla pelle (zona gambe o ascelle). Tieni il telefono a circa 30 cm di distanza, luce naturale dalla finestra."
 
-Esempio BUONO per laser: "Fai una foto alla zona trattata subito dopo la seduta, quando si vede bene la differenza con la pelle. Tieni il telefono dritto, non di lato. Se riesci mettiti vicino alla finestra per avere più luce naturale."
-Esempio SBAGLIATO: "Inquadratura ben composta con buona luce, ambiente curato."
+VISO:
+- Pulizia viso / Idratazione viso / Trattamento viso / Peeling:
+  archetype CORRETTO: before_after o editorial
+  se before_after: label "Foto viso PRIMA" + "Foto viso DOPO"
+  istruzioni: "Foto del viso in luce naturale, senza filtri. Stessa espressione e stesso angolo nelle due foto."
+- Radiofrequenza / Mesoterapia / Microneedling:
+  archetype CORRETTO: behind_scenes
+  foto: 1 — il macchinario sul viso
+  label: "Foto durante il trattamento"
 
-HASHTAG: 8-12 hashtag SPECIFICI per il servizio (non solo generici come #beautytreatment).
-Esempio per laser: #laserascelle #epilazionelaser #pelleliscia #addiorasatura #lasercentro
+CORPO:
+- Massaggio / Drenante / Pressoterapia / Cavitazione:
+  archetype CORRETTO: behind_scenes
+  foto: 1 — mani dell'operatrice, macchinario, ambiente
+  label: "Foto trattamento"
+  istruzioni: "Fotografa le mani dell'operatrice sul corpo, oppure i prodotti usati. Cerca luce calda e ambiente ordinato."
+
+════════════════════════════════════════
+REGOLE OBBLIGATORIE — NON IGNORARE
+════════════════════════════════════════
+
+REGOLA 1 — SELEZIONE:
+- Seleziona massimo {content_frequency} appuntamenti
+- VARIA gli archetipi — NON usare lo stesso per tutti i post
+- Distribuisci i post in giorni diversi della settimana
+- Usa la knowledge base sopra per scegliere archetype e numero di foto
+
+REGOLA 2 — CAPTION (FONDAMENTALE):
+❌ VIETATO (non scrivere MAI queste frasi):
+  - "ogni trattamento è un passo verso il tuo miglior viso"
+  - "la costanza premia", "risultati visibili fin dalla prima seduta"
+  - qualsiasi frase che non menzioni il nome esatto del servizio
+✅ OBBLIGATORIO:
+  - Menziona il nome esatto del servizio nella prima riga
+  - Descrivi il risultato SPECIFICO di quel servizio
+  - Esempio per semipermanente piedi: "Unghie dei piedi sempre perfette 💅 Il semipermanente dura settimane senza sbavature. Prenota → link in bio"
+  - Esempio per laminazione ciglia: "Sguardo aperto e definito per settimane ✨ La laminazione ciglia cambia tutto, senza mascara. Prenota ora"
+  - 2-3 emoji pertinenti, CTA finale, max 120 parole
+
+REGOLA 3 — LABEL CHECKLIST (FONDAMENTALE):
+❌ VIETATO: "Foto prodotto o ambiente", "Foto generica", qualsiasi label vago
+✅ OBBLIGATORIO: label specifico come "Foto smalto piedi", "Foto ciglia PRIMA", "Foto durante laser"
+
+REGOLA 4 — ISTRUZIONI CHECKLIST (FONDAMENTALE):
+❌ VIETATO: "Inquadratura ben composta", "buona luce", "ambiente curato e ordinato", qualsiasi frase generica
+✅ OBBLIGATORIO: spiega ESATTAMENTE cosa fotografare, da dove, a che distanza — linguaggio da amica semplice
+  - Esempio OK: "Appoggia il piede su un asciugamano bianco, tieni il telefono a una spanna dall'unghia e scatta dall'alto. Cerca luce dalla finestra."
+  - Max 2-3 frasi per item
+
+REGOLA 5 — HASHTAG:
+8-12 hashtag specifici per il servizio (es. semipermanente piedi: #semipermanentepiedi #smaltopiedi #nailsoftheday #pedicure #unghieperfette)
 
 Rispondi SOLO con JSON valido, senza testo prima o dopo:
 {{
@@ -209,21 +262,21 @@ Rispondi SOLO con JSON valido, senza testo prima o dopo:
     {{
       "appointment_id": "uuid dell'appuntamento",
       "service_name": "nome esatto del servizio",
-      "archetype": "before_after",
+      "archetype": "editorial",
       "content_type": "post",
       "scheduled_day": "martedi",
-      "rationale": "motivazione specifica legata al servizio (1 frase)",
+      "rationale": "motivazione specifica (1 frase)",
       "material_checklist": [
         {{
           "id": "item_1",
-          "label": "Foto PRIMA",
-          "instructions": "istruzioni specifiche e semplici in italiano...",
+          "label": "Foto smalto piedi",
+          "instructions": "Appoggia il piede su un asciugamano bianco, tieni il telefono a una spanna dall'unghia e scatta dall'alto. Cerca luce dalla finestra.",
           "required": true,
           "uploaded_url": null
         }}
       ],
-      "caption_text": "caption specifica per questo servizio...",
-      "hashtags": ["hashtag_specifico_1", "hashtag_specifico_2"]
+      "caption_text": "caption specifica per questo servizio con nome servizio esplicito...",
+      "hashtags": ["semipermanentepiedi", "smaltopiedi", "nailsoftheday"]
     }}
   ]
 }}"""
@@ -319,7 +372,8 @@ Regole:
 - Italiano semplice, NO termini tecnici di design
 - Max 120 parole totali
 - Tono entusiasta ma professionale
-- Sii specifico su cosa farai con QUESTE foto"""
+- Sii specifico su cosa farai con QUESTE foto
+- Usa SOLO le foto che ti vengono fornite, non inventare elementi non presenti"""
 
     try:
         client = _get_client()
@@ -353,7 +407,6 @@ async def generate_image(
     photos = content_record.get("photos_input") or []
     archetype = content_record.get("archetype", "editorial")
     service_name = content_record.get("service_name", "trattamento")
-    caption = content_record.get("caption_text") or ""
 
     # Usa brief_override se presente, altrimenti brief originale
     brief = content_record.get("visual_brief_override") or content_record.get("visual_brief") or ""
@@ -407,7 +460,7 @@ async def generate_image(
         ),
     }
 
-    # Se c'è un brief approvato, lui è l'unica fonte di verità per la composizione.
+    # Se c'è un brief approvato, è l'unica fonte di verità per la composizione.
     # Le istruzioni archetype vengono usate SOLO come fallback se manca il brief.
     if brief:
         composition_directive = (
@@ -432,7 +485,9 @@ async def generate_image(
         f"- Text on branding bar in white, elegant serif font\n"
         f"- Overall: Instagram-ready 1:1 square format, 1080x1080px equivalent\n"
         f"- Style inspiration: Charlotte Tilbury, Dior Beauty — luxury accessible\n\n"
-        f"IMPORTANT: use ONLY the photos provided. Do NOT invent or hallucinate additional photos.\n\n"
+        f"CRITICAL: use ONLY the photos provided. Do NOT invent or hallucinate "
+        f"additional photos that were not given to you. If only one photo is provided, "
+        f"create a single-photo composition.\n\n"
         f"Create a stunning, professional social media post."
     )
 
