@@ -962,20 +962,18 @@ async def generate_image(
         zone_analysis = ""
         if pil_images:
             analysis_prompt = (
-                "Analyze this beauty photo for graphic design overlay purposes.\n\n"
-                "Provide a precise spatial analysis in three parts:\n\n"
-                "1. SUBJECT AREA: Where exactly is the beauty treatment result? "
-                "(e.g., 'nails/hands fill the center-right 60% of the frame', "
-                "'lashes are in the upper-center 40%')\n\n"
-                "2. EMPTY/NEUTRAL ZONES: List each area that is plain background, "
-                "uniform surface, or open space with minimal detail. "
-                "For each zone state: position (top/bottom/left/right/corner) and "
-                "approximate percentage of the frame it occupies. "
-                "(e.g., 'upper-left corner: 15% plain light background', "
-                "'bottom strip: 10% neutral floor')\n\n"
-                "3. BEST TEXT PLACEMENT: Given the above, where exactly should text "
-                "and graphic elements go? Be specific with position names.\n\n"
-                "Be concise but spatially precise."
+                "You are an art director analyzing a beauty photo to plan a graphic overlay.\n\n"
+                "Think like a graphic designer — not about avoiding areas, but about what works visually.\n\n"
+                "Provide a concise analysis in three parts:\n\n"
+                "1. COMPOSITION: What is the main subject, where is it, and what is the visual weight distribution?\n\n"
+                "2. GRAPHIC OPPORTUNITIES: Which areas of the photo could host text or graphic elements "
+                "in a way that looks intentional and elegant? Consider: areas with uniform color or texture "
+                "where text would be legible, areas where a graphic element would balance the composition, "
+                "and even areas ON the subject if the contrast and space allow it without disturbing the result.\n\n"
+                "3. DESIGNER RECOMMENDATION: Where would a professional graphic designer place the text "
+                "and brand elements to create the most impactful, cohesive result? "
+                "Be specific and justify the choice in visual/compositional terms.\n\n"
+                "Be concise and direct."
             )
             try:
                 analysis_response = await client.aio.models.generate_content(
@@ -990,10 +988,10 @@ async def generate_image(
 
         # ── STEP 2: Generazione immagine con contesto spaziale esplicito ──
         placement_section = (
-            f"PHOTO SPATIAL ANALYSIS — use this to inform your compositional choices:\n"
+            f"ART DIRECTION ANALYSIS — use this to inform your design decisions:\n"
             f"{zone_analysis}\n\n"
             if zone_analysis else
-            "Analyze the photo carefully to understand the subject position and available space before designing.\n\n"
+            "Study the photo composition carefully before designing.\n\n"
         )
 
         prompt = (
@@ -1010,13 +1008,14 @@ async def generate_image(
             + (f"Text to include: {service_text}\n\n" if service_text else "")
             + brief_section +
 
+            f"Think and design like a professional graphic designer:\n"
             f"You have full creative freedom on composition, typography, graphic elements, and style. "
-            f"Make it elegant, on-brand, and visually striking.\n\n"
+            f"Place text and graphics wherever they create the strongest, most cohesive visual result — "
+            f"including on or near the subject if it works compositionally. "
+            f"What matters is that the design feels intentional, elegant, and on-brand.\n\n"
 
-            f"Two absolute rules:\n"
-            f"1. The photo fills the entire canvas edge-to-edge — never shrink, frame, or letterbox it.\n"
-            f"2. Never place text or opaque graphics over the beauty treatment result "
-            f"(the {_get_treatment_area(service_name)} must remain sharp and fully visible).\n\n"
+            f"One absolute rule: the photo fills the entire canvas edge-to-edge — "
+            f"never shrink, frame, or letterbox it.\n\n"
 
             f"Output: 1:1 square, publication-ready."
         )
