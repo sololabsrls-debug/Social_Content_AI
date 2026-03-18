@@ -718,40 +718,44 @@ Rispondi SOLO con JSON valido:
 # ── Layout system — 4 layout approvati, scelti per archetype ────────────
 
 _LAYOUT_A = (
-    "LAYOUT A — SIGNATURE POLAROID (default layout)\n"
-    "- Place the photo inside a refined white polaroid frame\n"
-    "- Polaroid card occupies 78–82% of the square, rotated 2–4°\n"
-    "- Background color visible only as a thin border around the card\n"
-    "- Top-left micro-label: 'IL RISULTATO' in spaced small caps\n"
-    "- Bottom polaroid margin: service name in elegant italic serif\n"
-    "- Optional: one tiny decorative dot or one ultra-thin ornamental line only"
+    "LAYOUT A — SIGNATURE POLAROID\n"
+    "- The entire composition is a polaroid card on a brand-colored background\n"
+    "- Polaroid card (white border + photo) occupies 78–82% of the square, rotated 2–4°\n"
+    "- The white polaroid border is part of the composition — text lives INSIDE the border at the bottom\n"
+    "- Service name in elegant italic serif in the bottom white margin of the polaroid\n"
+    "- Top-left corner of the card: one micro-label in spaced small caps\n"
+    "- Unity technique: the background color bleeds behind the card creating a seamless brand frame\n"
+    "- The result: photo + frame + text feel like one designed object, not separate layers"
 )
 
 _LAYOUT_B = (
-    "LAYOUT B — EDITORIAL EDGE\n"
-    "- Photo fills 85–90% of the square, edge-to-edge\n"
-    "- Service name in a thin bottom or top strip only\n"
-    "- Optional subtle vignette at edges to enhance text readability\n"
-    "- One thin ornamental line allowed\n"
-    "- Brand name very small and centered if space permits"
+    "LAYOUT B — GRADIENT FADE STRIP\n"
+    "- Photo fills the full frame edge-to-edge\n"
+    "- A gradient band fades from transparent (mid-photo) to solid brand color at top or bottom edge\n"
+    "- Text sits inside the solid part of the gradient — fully legible, never floating over the photo\n"
+    "- The gradient creates a smooth visual bridge between photo and text: they feel like one piece\n"
+    "- One ultra-thin ornamental line at the boundary between gradient and photo\n"
+    "- Unity technique: the gradient must start fading from a neutral area of the photo, never from the subject"
 )
 
 _LAYOUT_C = (
-    "LAYOUT C — ASYMMETRIC BRAND STRIP\n"
-    "- Photo occupies 65–70% (right side), fills its area completely\n"
-    "- Left vertical strip in brand background color\n"
-    "- Service name vertical, elegant, large but never dominant over the photo\n"
-    "- Thin divider line between strip and photo\n"
-    "- Small circle or monogram allowed at top of strip"
+    "LAYOUT C — INTEGRATED BRAND COLUMN\n"
+    "- Photo occupies 65–70% of the width (right side), flush to all edges\n"
+    "- Left column in brand background color, same height as the photo\n"
+    "- A subtle shadow or thin gradient at the photo/column boundary makes them feel connected\n"
+    "- Service name in the column: large, elegant, anchored — feels like a title belonging to the photo\n"
+    "- Optional: a thin brand-colored top bar spanning the full width ties column and photo together\n"
+    "- Unity technique: the column and photo share the same vertical axis — the design reads as one frame"
 )
 
 _LAYOUT_D = (
     "LAYOUT D — TRANSFORMATION SPLIT (before/after only)\n"
     "- BEFORE photo fills the left half, AFTER fills the right half — both edge-to-edge\n"
-    "- Thin elegant divider at center: hair-thin line with ◇ symbol\n"
+    "- Thin elegant divider at center: hair-thin line with ◇ symbol, spans full height\n"
     "- 'PRIMA' label top-left, 'DOPO' label top-right, in spaced small caps\n"
-    "- Service name in thin italic serif centered in a narrow bottom strip\n"
-    "- Optional: one ultra-thin top bar in brand primary color"
+    "- A narrow bottom strip in brand color spans the full width, uniting both halves\n"
+    "- Service name centered in this bottom strip in thin italic serif\n"
+    "- Unity technique: the bottom strip and divider create a graphic structure that holds both photos together"
 )
 
 _ARCHETYPE_LAYOUTS: dict = {
@@ -1107,39 +1111,47 @@ async def generate_image(
 
         # ── STEP 2: Generazione immagine con contesto spaziale esplicito ──
         placement_section = (
-            f"PHOTO SPATIAL ANALYSIS — use this to guide element placement precisely:\n"
+            f"PHOTO SPATIAL ANALYSIS — use this to inform your compositional choices:\n"
             f"{zone_analysis}\n\n"
             if zone_analysis else
-            "Carefully analyze the photo to identify empty/neutral zones before placing any graphics.\n\n"
+            "Analyze the photo carefully to understand the subject position and available space before designing.\n\n"
         )
 
         prompt = (
-            f"The attached photo is LOCKED and must NOT be modified in any way. "
-            f"Do not redraw, retouch, recolor, restyle, or alter it. "
-            f"The photo stays exactly as provided — pixel perfect.\n\n"
+            f"Create a unified, publication-ready 1:1 Instagram post for an Italian beauty center. "
+            f"The goal is a single cohesive design where photo and brand graphics feel like ONE composed piece — "
+            f"not a photo with a badge stuck on it.\n\n"
 
             f"{placement_section}"
 
-            f"Your task: add a graphic design layer on top of this photo to create a 1:1 Instagram post "
-            f"for an Italian beauty center. The photo must always fill the full frame — never shrink it.\n\n"
+            f"The attached photo is the hero of the composition. "
+            f"Do not redraw, retouch, recolor, or alter the photo itself. "
+            f"It must remain sharp and fully visible — especially the beauty treatment result.\n\n"
 
             f"Brand: {center_name}\n"
             f"Service: {service_name or '(see photo)'}\n"
             f"Privacy: {consent_instruction}\n\n"
 
-            f"Brand colors to use in the graphic layer:\n"
+            f"Brand colors:\n"
             f"  Primary {primary_color} · Secondary {secondary_color} · "
             f"Accent {accent_color} · Background {bg_color}\n\n"
 
             + (f"Text to include: {service_text}\n\n" if service_text else "")
             + brief_section +
 
-            f"Be creative with the graphic layer — you have full freedom on style, typography, "
-            f"ornaments, and mood. Make it elegant and on-brand.\n\n"
+            f"COMPOSITIONAL UNITY — this is the core design principle:\n"
+            f"Choose a layout structure (frame, gradient strip, brand column, or split) that creates "
+            f"a visual bridge between the photo and the brand graphics. "
+            f"Techniques that create unity: a polaroid frame where text lives inside the border, "
+            f"a gradient that fades from the photo into a solid brand-colored area where text sits, "
+            f"a side column that shares the same height as the photo and feels like its title. "
+            f"The text and graphic elements must feel anchored to the composition — "
+            f"they should look like they were designed with the photo, not placed on top of it.\n\n"
 
-            f"CRITICAL PLACEMENT RULE: Using the spatial analysis above as your precise guide, "
-            f"place ALL text and graphic elements EXCLUSIVELY in the empty/neutral zones identified. "
-            f"Never place anything over the treatment result or over visually complex areas.\n\n"
+            f"HARD RULE: Never place text or opaque graphics directly over the beauty treatment result "
+            f"(the nails, lashes, skin, etc. that is the subject of the photo). "
+            f"Gradients and semi-transparent transitions are allowed at the edges of the subject "
+            f"only if they do not obscure the result.\n\n"
 
             f"Output: 1:1 square, publication-ready."
         )
