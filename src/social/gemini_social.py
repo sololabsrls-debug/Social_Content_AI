@@ -989,46 +989,21 @@ Regole:
 # ── 3. Generazione immagine ────────────────────────────────────────
 
 # Direzioni creative per le 3 varianti
-_VARIANT_DIRECTIONS = [
-    (
-        "minimal",
-        "Minimal and airy — the graphic layer is barely there. "
-        "Photo dominates completely. One line of text max, maximum breathing space. "
-        "Restraint is the entire design statement.",
-    ),
-    (
-        "editorial",
-        "Editorial and confident — strong typography presence, bold graphic composition. "
-        "Think Italian beauty magazine. Typography IS the design. Make it striking.",
-    ),
-    (
-        "intimate",
-        "Intimate and warm — close focus on the treatment result. "
-        "The graphic layer almost disappears. Authentic, raw, no design noise. "
-        "Just the result and a whisper of text.",
-    ),
-]
-
-
 async def generate_image_variants(
     content_record: dict,
     tenant: dict,
 ) -> list[dict]:
     """
-    Genera 3 varianti in parallelo con direzioni creative diverse.
-    Ritorna lista di dict con index, direction, feed_bytes, story_bytes.
+    Genera 3 varianti in parallelo con lo stesso prompt — il modello produce
+    output diversi naturalmente per la sua natura stocastica.
     """
-    tasks = [
-        generate_image(content_record, tenant, direction=key, direction_instruction=instr)
-        for key, instr in _VARIANT_DIRECTIONS
-    ]
+    tasks = [generate_image(content_record, tenant) for _ in range(3)]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     variants = []
-    for i, (direction_key, _) in enumerate(_VARIANT_DIRECTIONS):
-        result = results[i]
+    for i, result in enumerate(results):
         if isinstance(result, Exception):
-            logger.error(f"Variante '{direction_key}' fallita: {result}")
+            logger.error(f"Variante {i+1} fallita: {result}")
             continue
         if not result or result == (None, None):
             continue
@@ -1036,7 +1011,7 @@ async def generate_image_variants(
         if feed_bytes:
             variants.append({
                 "index": i,
-                "direction": direction_key,
+                "direction": f"variante_{i+1}",
                 "feed_bytes": feed_bytes,
                 "story_bytes": story_bytes,
             })
@@ -1048,8 +1023,6 @@ async def generate_image_variants(
 async def generate_image(
     content_record: dict,
     tenant: dict,
-    direction: str = "editorial",
-    direction_instruction: str = "",
 ) -> tuple[Optional[bytes], Optional[bytes]]:
     """
     Genera la grafica finale usando gemini-3-pro-image-preview.
@@ -1117,10 +1090,10 @@ async def generate_image(
         f"Be creative with the graphic layer — you have full freedom on layout, typography, "
         f"ornaments, and composition. Make it elegant and on-brand.\n\n"
 
-        + (
-            f"Creative direction for this variant: {direction_instruction}\n\n"
-            if direction_instruction else ""
-        ) +
+        f"Important: any text placed on the graphic must be clearly legible. "
+        f"Ensure sufficient contrast between text and the photo beneath it — "
+        f"use a subtle background, a soft shadow, or place text over a naturally "
+        f"dark or light area of the photo.\n\n"
 
         f"Output: 1:1 square, publication-ready."
     )
