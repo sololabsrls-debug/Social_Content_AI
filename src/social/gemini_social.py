@@ -45,11 +45,23 @@ def _parse_json_response(text: str) -> dict | list:
     return json.loads(text)
 
 
+def _center_crop_square(img: Image.Image) -> Image.Image:
+    """Ritaglia l'immagine al centro per ottenere un quadrato 1:1."""
+    w, h = img.size
+    if w == h:
+        return img
+    side = min(w, h)
+    left = (w - side) // 2
+    top = (h - side) // 2
+    return img.crop((left, top, left + side, top + side))
+
+
 async def _download_image(url: str) -> Image.Image:
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.get(url)
         r.raise_for_status()
-        return Image.open(io.BytesIO(r.content)).convert("RGB")
+        img = Image.open(io.BytesIO(r.content)).convert("RGB")
+        return _center_crop_square(img)
 
 
 def _image_to_pil(img_bytes: bytes) -> Image.Image:
