@@ -1087,13 +1087,17 @@ async def generate_image(
         + (f"Text to include: {service_text}\n\n" if service_text else "")
         + brief_section +
 
-        f"Be creative with the graphic layer — you have full freedom on layout, typography, "
-        f"ornaments, and composition. Make it elegant and on-brand.\n\n"
+        f"Be creative with the graphic layer — you have full freedom on style, typography, "
+        f"ornaments, and mood. Make it elegant and on-brand.\n\n"
 
-        f"Important: any text placed on the graphic must be clearly legible. "
-        f"Ensure sufficient contrast between text and the photo beneath it — "
-        f"use a subtle background, a soft shadow, or place text over a naturally "
-        f"dark or light area of the photo.\n\n"
+        f"TEXT PLACEMENT — strict rule:\n"
+        f"Place ALL text and graphic elements ONLY in one of these two zones:\n"
+        f"  • A thin strip at the very TOP of the frame (top 12% maximum)\n"
+        f"  • A thin strip at the very BOTTOM of the frame (bottom 12% maximum)\n"
+        f"The entire central area of the photo (middle 76%) must remain completely "
+        f"free of any text, labels, lines, ornaments, or overlays.\n"
+        f"This is because the treatment result is always in the center of the photo "
+        f"and must be fully visible.\n\n"
 
         f"Output: 1:1 square, publication-ready."
     )
