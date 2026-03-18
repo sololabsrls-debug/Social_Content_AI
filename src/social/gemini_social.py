@@ -702,95 +702,157 @@ Rispondi SOLO con JSON valido:
 # Gemini ha libertà creativa su layout, composizione, elementi grafici,
 # posizione testi. I post usciranno visivamente diversi tra loro.
 
-# Obiettivo creativo per archetype — cosa deve comunicare il post
+# Vocabolario grafico condiviso — elementi decorativi che Gemini può usare
+_GRAPHIC_VOCABULARY = """
+GRAPHIC VOCABULARY — specific elements you can freely use:
+• Ornamental dividers: thin horizontal lines with diamond/rhombus symbols at center or ends
+  (example: ─────◇───── or ❖──────❖)
+• Sparkle/star accents: small scattered star shapes for luxury feel (✦ ✧ ✶ ✸)
+• Monogram circle: brand initials inside a thin circle, placed in a corner
+• Polaroid frame: photo with white border (thicker at bottom), optionally rotated 2-4°
+• Vignette: dark or colored gradient fading inward from edges — gives depth to full-bleed photos
+• Color swatch: filled circle showing the service's key color (great for nail colors, dyes)
+• Illustrated icon: a drawn/illustrated beauty element (eye, lash, nail, leaf) as graphic accent
+• Decorative corner elements: small ornamental flourishes in corners
+• Typography as graphic: service name very large, partially cropped, used as a background texture
+• Scrollwork/flourish: thin decorative line patterns in header or footer areas
+
+USE THESE DELIBERATELY — not all at once, but pick 1-2 that fit the concept.
+"""
+
+# Concetti visivi per archetype — specifici e distinti, non generici
 _ARCHETYPE_CREATIVE_GOALS: dict = {
     "before_after": (
-        "Show the dramatic transformation this service creates. "
-        "The viewer must grasp the before/after contrast instantly. "
-        "Make the difference unmissable — this is the strongest social proof format."
+        "Communicate transformation — the before/after contrast must hit in 1 second. "
+        "Make the difference feel dramatic and earned."
     ),
     "editorial": (
-        "Create an aspirational, magazine-quality beauty image. "
-        "Elegant, curated, desirable. The kind of post someone saves and shares. "
-        "The result is the hero — let it speak with minimal clutter."
+        "Create a beauty image someone would save and share — magazine quality, aspirational. "
+        "The result IS the message. Less text, more impact."
     ),
     "educational": (
-        "Design a clear, warm infographic that explains the service's main benefits. "
-        "Readable on a phone in 3 seconds. Informative but inviting — not clinical. "
-        "Make someone think 'I didn't know that, I should book this.'"
+        "Inform warmly — readable in 3 seconds on a phone. "
+        "Inviting and clear, never clinical. Make someone think 'I want that.'"
     ),
     "behind_scenes": (
-        "Capture an authentic human moment of the beauty work in progress. "
-        "Raw, real, trustworthy. Minimal design — the photo is the hero, not the graphics. "
-        "Should feel like a genuine peek behind the curtain, not a staged shot."
+        "Show the real work, the real hands, the real moment. "
+        "Authenticity is the message — resist over-designing."
     ),
     "promo": (
-        "Create a high-impact post that makes someone stop scrolling and book. "
-        "Bold, direct, clear CTA. Confident and warm — not pushy or cheap-looking."
+        "Stop the scroll and drive a booking. Bold, direct, zero ambiguity. "
+        "Confident energy — not desperate, not cheap."
     ),
 }
 
-# Ispirazione per composizione — Gemini può scegliere, adattare, combinare o inventare
 _ARCHETYPE_INSPIRATIONS: dict = {
     "before_after": [
-        "Classic 50/50 vertical split with a clean dividing line",
-        "Diagonal composition — BEFORE fills one triangle, AFTER the other",
-        "AFTER full-frame with BEFORE as a smaller polaroid inset in one corner",
-        "Triptych: BEFORE | a detail/treatment step | AFTER in three panels",
-        "BEFORE fades into AFTER using a horizontal reveal/wipe effect",
+        "TRANSFORMATION header: thin top bar in primary color with ornamental lines + 'TRANSFORMATION' "
+        "or 'PRIMA · DOPO' in spaced small caps. Photos as inset bordered cards side by side, "
+        "circle arrow icon ► between them. Footer bar with center name + sparkle ornaments ✦",
+
+        "SPLIT FULL-BLEED: BEFORE photo left half, AFTER photo right half, both nearly full-height. "
+        "Thin ornamental divider at center (❖ or ◇). Labels 'PRIMA' / 'DOPO' in bold italic serif "
+        "overlaid on photos. Narrow brand-color strip at bottom with center name.",
+
+        "POLAROID DIPTYCH: Both photos styled as polaroid cards (white border, slight rotation in "
+        "opposite directions) on brand background color. Hand-lettered style labels below each. "
+        "Decorative corner ornaments on the background.",
+
+        "REVEAL CONCEPT: AFTER photo full-frame with a vertical strip of BEFORE visible on the left "
+        "edge (like a page being turned). 'PRIMA ↔ DOPO' label. Monogram circle top corner.",
     ],
     "editorial": [
-        "Photo centered dominant, elegant title below on brand background",
-        "Asymmetric: photo right side, large typographic title in left column",
-        "Full-bleed photo with color gradient overlay and text at bottom",
-        "Photo with a decorative color frame or border in brand accent color",
-        "Photo slightly cropped/zoomed, generous negative space filled with brand color",
-        "Close-up detail shot with service name as large background watermark text",
+        "POLAROID ON COLOR: Photo rotated 3-4° as a polaroid (white border, thicker bottom) "
+        "placed on brand background. 'IL RISULTATO' in spaced small caps top-left. "
+        "Service name in large italic serif bottom-right. Center name italic below. Decorative dots ·",
+
+        "FULL-BLEED VIGNETTE: Photo fills nearly the entire frame with dark vignette at edges. "
+        "Service name as LARGE italic serif overlay, partially transparent. Center name small bottom. "
+        "Sparkle accents ✦ scattered subtly at corners.",
+
+        "LUXURY COLOR CARD: If service involves color (nail, hair, dye) — photo left 55%, "
+        "dark brand-color panel right 45%. At top: 'SHADE' in spaced small caps. "
+        "Circular color swatch. Color/shade name in large italic serif. Center name + thin line at bottom.",
+
+        "ASYMMETRIC TYPOGRAPHY: Photo occupies right 60%, slightly cropped. Left strip: brand background. "
+        "Service name rotated 90° reading bottom-to-top in brand primary, very large. "
+        "Thin ornamental line between strip and photo. Monogram circle at top.",
     ],
     "educational": [
-        "Photo left, clean info panel right with 3-4 benefit bullet points",
-        "Photo top, title + benefit grid (2×2 or 3 columns) below",
-        "Large bold number or icon as graphic anchor, photo and facts alongside",
-        "Step-by-step horizontal strip: icon — text — icon — text",
-        "Circular photo inset in a graphic layout with text surrounding it",
+        "ILLUSTRATED CONCEPT: Service-specific illustrated icon (drawn eye for lashes, nail shape for "
+        "nails, leaf for organic treatments) as central graphic on gradient background. "
+        "Service name in large serif below. Tagline. CTA bar at bottom. Can work without photos.",
+
+        "SPLIT PANEL INFO: Photo left 55%, brand-color info panel right. Panel has: service name "
+        "bold top, ornamental divider ─◇─, 3 benefit points with sparkle bullets ✦, center name bottom.",
+
+        "NUMBERED STEPS: Photo at top 40% full-width. Below on brand background: "
+        "3 numbered steps or facts, each preceded by a circle number in accent color. "
+        "Ornamental header line with diamond divider.",
+
+        "ICON GRID: No large photo needed — 4-quadrant grid, each quadrant has a small illustrated "
+        "icon + 1-line benefit. Center photo or color as background. Service name as title. Brand colors.",
     ],
     "behind_scenes": [
-        "Nearly full-bleed photo, only service name and center name in a corner",
-        "Polaroid frame with white border and slight tilt — raw and organic",
-        "Instagram story-style with a location tag pill overlay at top",
-        "Two candid moments side by side as a diptych",
-        "Photo with a subtle warm color wash and handwritten-style caption",
+        "FULL-BLEED + STARS: Photo nearly fills the entire frame. Dark vignette fading from edges. "
+        "Small sparkle star accents ✦ ✧ scattered at corners. Service name SMALL CAPS "
+        "in a thin header bar. Center name in footer bar. Minimal, luxury.",
+
+        "TILTED POLAROID: Single photo styled as polaroid (white border, rotated 2-3°) on brand color. "
+        "Service name handwritten-style in polaroid bottom margin. Center name below the frame. "
+        "2-3 small decorative dots on background.",
+
+        "STORY TAG AUTHENTIC: Photo full-frame, authentic. Top: pill-shaped location tag "
+        "in primary color with center name. Bottom: thin translucent strip with service name. "
+        "That's it — raw and real.",
+
+        "CINEMATIC FRAME: Photo with thin inner border/frame in accent color (like a cinema frame). "
+        "Top bar: center name in small caps. Bottom: service name italic. Letterbox feel.",
     ],
     "promo": [
-        "50/50 split: photo left, bold brand-color block right with service + CTA",
-        "Photo fills the frame, centered semi-transparent text box overlay",
-        "Photo top 60%, bold brand-color bottom bar with service name + 'Prenota ora'",
-        "Full-bleed photo with large bold text in brand color over a partial overlay",
-        "Circular photo in center, graphic shapes surrounding it, CTA prominent",
+        "ILLUSTRATED PROMO: No client photo needed — illustrated beauty icon on gradient background "
+        "(primary → secondary color). Service name LARGE serif center. Italic tagline. "
+        "Solid CTA bar at bottom in dark primary. Works even without a photo.",
+
+        "BOLD SPLIT: Photo left 50%. Right 50%: solid primary color block. "
+        "Service name large + bold serif. Thin ornamental divider line. "
+        "'Prenota ora' with accent underline. Center name small + footer ornament ─◇─.",
+
+        "FULL-BLEED CTA: Photo fills frame. Dark semi-transparent overlay on bottom third. "
+        "Service name large italic white. 'Prenota ora →' in accent color below. "
+        "Center name small. Sparkle accents ✦ top corners.",
+
+        "HEADER FOCUS: Large decorative header bar in primary with ornamental scrollwork. "
+        "Photo below (full width, 55%). Footer bar with center name + CTA.",
     ],
 }
 
 # Direzione degli elementi grafici per stile visivo del brand
 _STYLE_GRAPHIC_DIRECTION: dict = {
     "minimal": (
-        "GRAPHIC STYLE: Extreme restraint — generous whitespace, thin lines only. "
-        "No decorative shapes. Let the photo and typography breathe. Less is always more."
+        "BRAND GRAPHIC STYLE: Clean restraint. Use thin lines, generous whitespace, "
+        "at most 1 delicate ornamental element. Typography does the heavy lifting. "
+        "The polaroid frame or thin ornamental divider works well. Nothing garish."
     ),
     "luxury": (
-        "GRAPHIC STYLE: Refined luxury — optional hairline decorative lines in the accent color, "
-        "wide letter-spacing on typography. Subtle, never garish. Think Vogue, not QVC."
+        "BRAND GRAPHIC STYLE: Refined opulence. Ornamental dividers with diamond symbols (◇ ❖), "
+        "sparkle accents (✦ ✧), wide letter-spacing on all caps text, monogram circle. "
+        "Gold/accent color details. Think premium beauty editorial — Vogue Italia level."
     ),
     "naturale": (
-        "GRAPHIC STYLE: Organic warmth — soft botanical or brushstroke decorative elements at low opacity, "
-        "warm color palette. Feels handcrafted and genuine, not corporate."
+        "BRAND GRAPHIC STYLE: Organic warmth. Soft illustrated botanical elements, "
+        "brushstroke decorative accents, warm vignette on photos. "
+        "Handwritten-feel typography. Earthy and genuine, not corporate."
     ),
     "colorato": (
-        "GRAPHIC STYLE: Bold and joyful — overlapping geometric shapes (circles, arcs) in brand colors "
-        "as background accents. Strong color blocks. Energetic without being chaotic."
+        "BRAND GRAPHIC STYLE: Bold and joyful. Overlapping colored shapes, strong color blocks, "
+        "energetic composition. Can be more graphic and less restrained than other styles. "
+        "The illustrated icon concept works especially well here."
     ),
     "moderno": (
-        "GRAPHIC STYLE: Contemporary and sharp — bold geometric elements, diagonal lines or blocks "
-        "in brand colors. High contrast. Confident typographic presence."
+        "BRAND GRAPHIC STYLE: Contemporary sharpness. Bold geometric elements — "
+        "diagonal lines, rectangle blocks, strong typographic presence. "
+        "High contrast between primary and background. Confident and forward."
     ),
 }
 
@@ -1000,9 +1062,9 @@ async def generate_image(
         (visual_style or "minimal").lower().split()[0], _STYLE_GRAPHIC_DIRECTION["minimal"]
     )
 
-    # Ispirazione composizione — Gemini sceglie o inventa liberamente
+    # Concetti visivi per archetype
     inspirations = _ARCHETYPE_INSPIRATIONS.get(archetype, _ARCHETYPE_INSPIRATIONS["editorial"])
-    insp_str = "\n".join(f"  • {i}" for i in inspirations)
+    insp_str = "\n\n".join(f"  CONCEPT {i+1}: {c}" for i, c in enumerate(inspirations))
     creative_goal = _ARCHETYPE_CREATIVE_GOALS.get(archetype, "Create a beautiful, on-brand Instagram post.")
 
     if brief:
@@ -1010,12 +1072,10 @@ async def generate_image(
     else:
         composition = (
             f"CREATIVE GOAL: {creative_goal}\n\n"
-            f"LAYOUT INSPIRATION — choose one, combine, adapt, or create something entirely different:\n"
+            f"VISUAL CONCEPTS — pick one and execute it with precision, or combine/adapt:\n"
             f"{insp_str}\n\n"
-            f"CREATIVE FREEDOM: You are NOT locked to these options. "
-            f"Design the composition that best serves the goal and the photos you see. "
-            f"Surprise creatively while staying on-brand.\n\n"
-            f"{graphic_direction}"
+            f"{graphic_direction}\n\n"
+            f"{_GRAPHIC_VOCABULARY}"
         )
 
     # Contesto servizio opzionale per arricchire la generazione
@@ -1031,9 +1091,8 @@ async def generate_image(
         required_texts += f" and '{service_name}'"
 
     prompt = (
-        f"You are a senior creative director at a top-tier Italian beauty brand agency. "
-        f"Your job is to create an Instagram post that looks like it belongs in a premium beauty magazine — "
-        f"not a generic template, not clip art. Every element must feel intentional and on-brand.\n\n"
+        f"You are a creative director at a top Italian beauty brand agency. "
+        f"Create an Instagram post with a distinctive visual concept — not a generic template.\n\n"
 
         f"BRAND: {center_name}\n"
         f"SERVICE: {service_name or '(see photos)'}\n"
@@ -1041,21 +1100,19 @@ async def generate_image(
         f"PRIVACY: {consent_instruction}\n\n"
 
         f"BRAND IDENTITY:\n"
-        f"  Overall feel: {style_feel}\n"
+        f"  Feel: {style_feel}\n"
         f"  Photo treatment: {photo_treatment}\n"
         f"  Typography: {font_style}\n"
-        f"  Colors (EXACT — never substitute or approximate):\n"
+        f"  Colors (use EXACTLY — no substitutions):\n"
         f"    Primary {primary_color} · Secondary {secondary_color} · Accent {accent_color} · Background {bg_color}\n\n"
 
         f"{composition}\n\n"
 
-        f"VISUAL QUALITY STANDARDS:\n"
-        f"- Composition must have a clear visual hierarchy — the eye should travel deliberately\n"
-        f"- Typography placement must feel considered, not just dropped in a corner\n"
-        f"- Use of negative space should be intentional — breathing room OR density, not random\n"
-        f"- The photo(s) must be the hero — enhance them, don't bury them under graphics\n"
-        f"- Color usage must feel like a creative choice, not an afterthought\n"
-        f"- The result must make someone stop mid-scroll and look twice\n\n"
+        f"PHOTO DOMINANCE RULE — this is critical:\n"
+        f"The photo(s) must occupy 70-90% of the visual space. "
+        f"NEVER shrink the photo to a small element surrounded by a large block of color. "
+        f"Color and graphic elements ACCENT the photo — they frame it, overlay it subtly, or sit beside it. "
+        f"A small photo on a big colored background = failure. A large photo with small graphic details = success.\n\n"
 
         f"ABSOLUTE RULES:\n"
         f"- Use ONLY the photos provided — never add, generate, or imply photos not given\n"
