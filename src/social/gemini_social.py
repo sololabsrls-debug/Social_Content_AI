@@ -1088,60 +1088,55 @@ async def generate_image(
     required_texts = f"'{service_name}'" if service_name else ""
 
     prompt = (
-        f"You are a creative director at a top Italian beauty brand agency. "
-        f"Create a clean, elegant Instagram post — refined and delicate, never cluttered.\n\n"
+        # ── VINCOLO ASSOLUTO — prima di qualsiasi altra cosa ──────────
+        f"⚠️ LOCKED PHOTO CONSTRAINT — apply this before reading anything else:\n"
+        f"The attached photo(s) are LOCKED and IMMUTABLE. They are authentic real-life treatment "
+        f"results shot by the beautician. You MUST NOT alter them in any way:\n"
+        f"  - Do NOT reposition hands, fingers, nails, or any body part\n"
+        f"  - Do NOT change nail color, lash shape, skin tone, eye shape, or hair\n"
+        f"  - Do NOT apply filters, color grading, or lighting changes to the photo\n"
+        f"  - Do NOT redraw, reimagine, or regenerate any part of the photo\n"
+        f"The photo is a fixed pixel-perfect background. Your ONLY task is to add a graphic "
+        f"layer on top of it — like placing text and design stickers onto a printed photograph. "
+        f"The photo beneath never changes.\n\n"
+
+        # ── TASK ───────────────────────────────────────────────────────
+        f"TASK: Add a clean, elegant graphic layer on top of the provided photo "
+        f"to create an Instagram post for an Italian beauty center. "
+        f"Refined and delicate — never cluttered.\n\n"
 
         f"BRAND: {center_name}\n"
         f"SERVICE: {service_name or '(see photos)'}\n"
         f"{service_context_en}"
         f"PRIVACY: {consent_instruction}\n\n"
 
-        f"BRAND IDENTITY:\n"
+        # ── BRAND IDENTITY (solo per il layer grafico, NON per la foto) ─
+        f"BRAND IDENTITY — apply ONLY to the graphic layer, never to the photo:\n"
         f"  Feel: {style_feel}\n"
-        f"  Photo treatment: {photo_treatment}\n"
         f"  Typography: {font_style}\n"
         f"  Colors (use EXACTLY — no substitutions):\n"
         f"    Primary {primary_color} · Secondary {secondary_color} · Accent {accent_color} · Background {bg_color}\n\n"
 
+        # ── DIREZIONE CREATIVA ─────────────────────────────────────────
         f"{composition}\n\n"
 
-        f"PHOTO INTEGRITY — non-negotiable:\n"
-        f"The photos are REAL treatment results taken by the stylist — authentic, unaltered shots. "
-        f"DO NOT redraw, reinterpret, reimagine, or stylize the photo content. "
-        f"Do not change nail colors, lash shape, skin tone, eye shape, or ANY visible detail. "
-        f"Your task is COMPOSITING: add text and graphic elements ON TOP of the exact unmodified photo. "
-        f"Think Photoshop layers — the photo layer stays untouched beneath everything else.\n\n"
+        # ── REGOLE LAYER GRAFICO ───────────────────────────────────────
+        f"GRAPHIC LAYER RULES:\n"
+        f"• Photo fills the entire frame — exceptions only for split layouts (photo min 50% of side) "
+        f"or large polaroid (card min 70% of frame width)\n"
+        f"• Treatment result (nails, lashes, skin) must be fully visible — NO text or graphics over it\n"
+        f"• Place text only in: thin top/bottom strip, empty corners, or translucent edge bar\n"
+        f"• Maximum 1-2 graphic elements — empty space is sophistication, not a mistake\n"
+        f"• Thin lines, light overlays, small refined typography — never bold or dominant\n\n"
 
-        f"PHOTO AS CANVAS — non-negotiable:\n"
-        f"DEFAULT layout: the photo fills the ENTIRE 1:1 frame edge-to-edge. "
-        f"All text and graphic elements are overlaid on top. "
-        f"The ONLY layouts where you may reduce the photo area:\n"
-        f"  • Split panel / before-after: photo fills one full side (minimum 50% of frame)\n"
-        f"  • Polaroid frame: the polaroid card must be LARGE — at least 70% of frame width\n"
-        f"ABSOLUTELY FORBIDDEN: a small photo floating in a large solid brand-color background. "
-        f"If brand background color dominates the frame → you failed. "
-        f"Photo = the canvas; graphic elements = small accents on top.\n\n"
-
-        f"TREATMENT VISIBILITY — non-negotiable:\n"
-        f"The treatment result (nails, lashes, brows, skin) is the main subject — it must be "
-        f"100% visible and unobstructed. NEVER place text, labels, or graphic elements over "
-        f"the treatment area. Place text only in: thin strips at the very top or bottom edge, "
-        f"empty corners of the photo, or on a narrow translucent bar that sits outside the subject.\n\n"
-
-        f"DESIGN PRINCIPLE — clean and delicate:\n"
-        f"Use maximum 1-2 graphic elements. Prefer thin lines over thick borders. "
-        f"Prefer light, delicate overlays over solid color blocks. "
-        f"Prefer generous empty space over decorative clutter. "
-        f"Typography should be small and refined, not dominant. "
-        f"The photo tells the story — design only whispers context.\n\n"
-
+        # ── REGOLE ASSOLUTE ────────────────────────────────────────────
         f"ABSOLUTE RULES:\n"
-        f"- Use ONLY the photos provided — never generate, invent, or replace them\n"
-        f"- Brand colors EXACTLY as specified — zero deviation\n"
+        f"- Use ONLY the provided photos — never generate or invent visual content\n"
+        f"- Brand colors EXACTLY as specified\n"
         + (f"- Include this text on the graphic: {required_texts}\n" if required_texts else "")
         + f"- 1:1 square format, publication-ready\n\n"
 
-        f"Create the image now."
+        f"Create the graphic layer now."
     )
 
     try:
