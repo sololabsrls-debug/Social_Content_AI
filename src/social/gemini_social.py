@@ -1088,10 +1088,8 @@ async def generate_image(
     if service_benefits:
         service_context_en += f"Key benefits: {service_benefits}\n"
 
-    # Testi obbligatori nella grafica — solo quelli, non altri
-    required_texts = f"'{center_name}'"
-    if service_name:
-        required_texts += f" and '{service_name}'"
+    # Testi nella grafica — solo nome servizio obbligatorio, nome centro opzionale
+    required_texts = f"'{service_name}'" if service_name else ""
 
     prompt = (
         f"You are a creative director at a top Italian beauty brand agency. "
@@ -1131,8 +1129,8 @@ async def generate_image(
         f"ABSOLUTE RULES:\n"
         f"- Use ONLY the photos provided — never generate, invent, or replace them\n"
         f"- Brand colors EXACTLY as specified — zero deviation\n"
-        f"- Include these text elements: {required_texts}\n"
-        f"- 1:1 square format, publication-ready\n\n"
+        + (f"- Include this text on the graphic: {required_texts}\n" if required_texts else "")
+        + f"- 1:1 square format, publication-ready\n\n"
 
         f"Create the image now."
     )
