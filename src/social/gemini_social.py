@@ -153,6 +153,7 @@ def select_and_plan_week(
         return []
 
     prompt = f"""Sei un esperto di social media per centri estetici italiani.
+Il tuo compito è creare un piano editoriale settimanale SPECIFICO per i servizi elencati.
 
 CENTRO: {center_name}
 BIO: {bio}
@@ -165,54 +166,64 @@ POST DA PIANIFICARE: massimo {content_frequency}
 APPUNTAMENTI DISPONIBILI:
 {json.dumps(appt_summary, ensure_ascii=False, indent=2)}
 
-ARCHETIPI DISPONIBILI:
-- before_after: per trattamenti con risultato visivo chiaro (laminazione, nail art, microblading)
-- editorial: post stile rivista, elegante e aspirazionale
-- educational: per spiegare un servizio poco conosciuto
-- behind_scenes: dietro le quinte del lavoro quotidiano
-- promo: per riempire slot liberi in agenda
+GUIDA ARCHETIPI — scegli quello più adatto al servizio:
+- before_after: laser (risultato pelle), nail art, laminazione, microblading, tinta sopracciglia
+- educational: laser (spiegare come funziona), trattamenti viso, servizi poco noti
+- editorial: semipermanente, pedicure, manicure, pulizia viso
+- behind_scenes: qualsiasi servizio — mostra il processo, i prodotti, le mani al lavoro
+- promo: quando vuoi spingere prenotazioni su un servizio specifico
 
-REGOLE (già applicate, non ignorare):
+REGOLE OBBLIGATORIE:
 1. Seleziona massimo {content_frequency} appuntamenti
-2. Varia gli archetipi: non tutti before_after
+2. VARIA gli archetipi — NON usare lo stesso per tutti
 3. Distribuisci i post in giorni diversi della settimana
-4. Privilegia servizi con alto impatto visivo
+4. Ogni caption DEVE menzionare il nome esatto del servizio
 
-PER LE ISTRUZIONI MATERIALE — REGOLA FONDAMENTALE:
+REGOLA FONDAMENTALE PER LE CAPTION:
+- Scrivi una caption SPECIFICA per il servizio indicato
+- NON usare testi generici tipo "ogni trattamento è un passo verso il tuo miglior viso"
+- Se il servizio è "Laser Ascelle": parla di laser, pelle liscia, addio rasatura
+- Se il servizio è "Semipermanente mani": parla di unghie, colore, durata
+- Se il servizio è "Pulizia viso": parla di pelle, pori, luminosità
+- Termina SEMPRE con una CTA specifica (prenota, chiama, link in bio)
+- Includi 2-3 emoji pertinenti al servizio
+- Max 120 parole
+
+REGOLA FONDAMENTALE PER LE ISTRUZIONI MATERIALE:
 Scrivi come se stessi spiegando a un'amica NON fotografa cosa fare.
-Usa un linguaggio semplice, pratico, rassicurante.
-Spiega: cosa fotografare, come tenere il telefono, dove farlo (luce, sfondo),
-cosa evitare, quante foto fare. Max 3-4 frasi per item.
-NON usare termini tecnici (no: "ISO", "bokeh", "angolazione", "composizione").
-Usa invece: "vicino alla finestra", "a una spanna di distanza", "tieni il telefono dritto".
+Sii SPECIFICA per il servizio — non istruzioni generiche.
+Spiega: cosa fotografare esattamente, come tenere il telefono, dove farlo.
+NON usare: "ISO", "bokeh", "angolazione", "composizione", "inquadratura".
+USA invece: "vicino alla finestra", "a una spanna di distanza", "tieni dritto il telefono".
+Max 3 frasi per item. Tono rassicurante, come un consiglio tra colleghe.
 
-PER LE CAPTION:
-- Scrivi in italiano
-- Tono coerente con il profilo brand
-- Max 150 parole
-- Includi sempre una call to action finale
+Esempio BUONO per laser: "Fai una foto alla zona trattata subito dopo la seduta, quando si vede bene la differenza con la pelle. Tieni il telefono dritto, non di lato. Se riesci mettiti vicino alla finestra per avere più luce naturale."
+Esempio SBAGLIATO: "Inquadratura ben composta con buona luce, ambiente curato."
+
+HASHTAG: 8-12 hashtag SPECIFICI per il servizio (non solo generici come #beautytreatment).
+Esempio per laser: #laserascelle #epilazionelaser #pelleliscia #addiorasatura #lasercentro
 
 Rispondi SOLO con JSON valido, senza testo prima o dopo:
 {{
   "selected": [
     {{
       "appointment_id": "uuid dell'appuntamento",
-      "service_name": "nome del servizio",
+      "service_name": "nome esatto del servizio",
       "archetype": "before_after",
       "content_type": "post",
       "scheduled_day": "martedi",
-      "rationale": "breve motivazione della scelta (1 frase)",
+      "rationale": "motivazione specifica legata al servizio (1 frase)",
       "material_checklist": [
         {{
           "id": "item_1",
           "label": "Foto PRIMA",
-          "instructions": "istruzioni semplici in italiano...",
+          "instructions": "istruzioni specifiche e semplici in italiano...",
           "required": true,
           "uploaded_url": null
         }}
       ],
-      "caption_text": "testo caption completo...",
-      "hashtags": ["hashtag1", "hashtag2"]
+      "caption_text": "caption specifica per questo servizio...",
+      "hashtags": ["hashtag_specifico_1", "hashtag_specifico_2"]
     }}
   ]
 }}"""
