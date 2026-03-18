@@ -702,158 +702,142 @@ Rispondi SOLO con JSON valido:
 # Gemini ha libertà creativa su layout, composizione, elementi grafici,
 # posizione testi. I post usciranno visivamente diversi tra loro.
 
-# Vocabolario grafico condiviso — elementi decorativi che Gemini può usare
-_GRAPHIC_VOCABULARY = """
-GRAPHIC VOCABULARY — use sparingly, maximum 1-2 elements total:
-• Thin ornamental line: a single hair-thin horizontal line (─────◇─────) in header or footer
-• Vignette: very subtle dark gradient fading from edges — enhances depth without adding clutter
-• Polaroid frame: white border (thicker at bottom), gives a clean framed feel
-• Color swatch: small filled circle showing nail/dye color — only when relevant
-• Illustrated icon: a minimal line-drawn beauty element in one corner only
-• Translucent strip: semi-transparent bar (dark or brand color) at top or bottom edge for text
+# ── Layout system — 4 layout approvati, scelti per archetype ────────────
 
-LESS IS MORE — one element done with precision is better than three fighting for attention.
-Empty space is not a problem. Restraint is sophistication.
-"""
+_LAYOUT_A = (
+    "LAYOUT A — SIGNATURE POLAROID (default layout)\n"
+    "- Place the photo inside a refined white polaroid frame\n"
+    "- Polaroid card occupies 78–82% of the square, rotated 2–4°\n"
+    "- Background color visible only as a thin border around the card\n"
+    "- Top-left micro-label: 'IL RISULTATO' in spaced small caps\n"
+    "- Bottom polaroid margin: service name in elegant italic serif\n"
+    "- Optional: one tiny decorative dot or one ultra-thin ornamental line only"
+)
 
-# Concetti visivi per archetype — specifici e distinti, non generici
-_ARCHETYPE_CREATIVE_GOALS: dict = {
+_LAYOUT_B = (
+    "LAYOUT B — EDITORIAL EDGE\n"
+    "- Photo fills 85–90% of the square, edge-to-edge\n"
+    "- Service name in a thin bottom or top strip only\n"
+    "- Optional subtle vignette at edges to enhance text readability\n"
+    "- One thin ornamental line allowed\n"
+    "- Brand name very small and centered if space permits"
+)
+
+_LAYOUT_C = (
+    "LAYOUT C — ASYMMETRIC BRAND STRIP\n"
+    "- Photo occupies 65–70% (right side), fills its area completely\n"
+    "- Left vertical strip in brand background color\n"
+    "- Service name vertical, elegant, large but never dominant over the photo\n"
+    "- Thin divider line between strip and photo\n"
+    "- Small circle or monogram allowed at top of strip"
+)
+
+_LAYOUT_D = (
+    "LAYOUT D — TRANSFORMATION SPLIT (before/after only)\n"
+    "- BEFORE photo fills the left half, AFTER fills the right half — both edge-to-edge\n"
+    "- Thin elegant divider at center: hair-thin line with ◇ symbol\n"
+    "- 'PRIMA' label top-left, 'DOPO' label top-right, in spaced small caps\n"
+    "- Service name in thin italic serif centered in a narrow bottom strip\n"
+    "- Optional: one ultra-thin top bar in brand primary color"
+)
+
+_ARCHETYPE_LAYOUTS: dict = {
     "before_after": (
-        "Communicate transformation — the before/after contrast must hit in 1 second. "
-        "Make the difference feel dramatic and earned."
+        f"{_LAYOUT_D}\n\n"
+        f"Alternative if only one photo is provided: use Layout A instead.\n"
+        f"When in doubt, use LAYOUT D."
     ),
     "editorial": (
-        "Create a beauty image someone would save and share — magazine quality, aspirational. "
-        "The result IS the message. Less text, more impact."
-    ),
-    "educational": (
-        "Inform warmly — readable in 3 seconds on a phone. "
-        "Inviting and clear, never clinical. Make someone think 'I want that.'"
+        f"{_LAYOUT_A}\n\n{_LAYOUT_B}\n\n{_LAYOUT_C}\n\n"
+        f"When in doubt, use LAYOUT A."
     ),
     "behind_scenes": (
-        "Show the real work, the real hands, the real moment. "
-        "Authenticity is the message — resist over-designing."
+        f"{_LAYOUT_A}\n\n{_LAYOUT_B}\n\n"
+        f"When in doubt, use LAYOUT A."
+    ),
+    "educational": (
+        f"{_LAYOUT_B}\n\n{_LAYOUT_C}\n\n{_LAYOUT_A}\n\n"
+        f"When in doubt, use LAYOUT B."
     ),
     "promo": (
-        "Stop the scroll and drive a booking. Bold, direct, zero ambiguity. "
-        "Confident energy — not desperate, not cheap."
+        f"{_LAYOUT_B}\n\n{_LAYOUT_C}\n\n"
+        f"When in doubt, use LAYOUT B."
     ),
 }
 
-_ARCHETYPE_INSPIRATIONS: dict = {
-    "before_after": [
-        "TRANSFORMATION header: thin top bar in primary color with ornamental lines + 'PRIMA · DOPO' "
-        "in spaced small caps. BEFORE photo left half and AFTER photo right half, each photo fills "
-        "its half of the frame edge-to-edge. Thin ornamental divider at center (❖). "
-        "Footer bar with center name + sparkle ornaments ✦",
-
-        "SPLIT FULL-BLEED: BEFORE photo left half, AFTER photo right half, both nearly full-height. "
-        "Thin ornamental divider at center (❖ or ◇). Labels 'PRIMA' / 'DOPO' in bold italic serif "
-        "overlaid on photos. Narrow brand-color strip at bottom with center name.",
-
-        "POLAROID DIPTYCH: Both photos as polaroid cards (white border, rotated in opposite directions), "
-        "each polaroid large (minimum 40% of frame width) — they nearly fill the frame, touching edges. "
-        "Hand-lettered 'PRIMA' / 'DOPO' in polaroid bottom margin. Brand background only visible in narrow gaps.",
-
-        "REVEAL CONCEPT: AFTER photo full-frame with a vertical strip of BEFORE visible on the left "
-        "edge (like a page being turned). 'PRIMA ↔ DOPO' label. Monogram circle top corner.",
-    ],
-    "editorial": [
-        "POLAROID ON COLOR: Photo as a large polaroid card (white border, thicker bottom, rotated 3-4°) "
-        "— the polaroid itself covers 75-80% of the frame. Only a thin sliver of brand background "
-        "is visible around it. 'IL RISULTATO' small caps overlaid top-left corner. "
-        "Service name in large italic serif in polaroid bottom margin. Decorative dots · on background corners.",
-
-        "FULL-BLEED VIGNETTE: Photo fills nearly the entire frame with dark vignette at edges. "
-        "Service name as LARGE italic serif overlay, partially transparent. Center name small bottom. "
-        "Sparkle accents ✦ scattered subtly at corners.",
-
-        "LUXURY COLOR CARD: If service involves color (nail, hair, dye) — photo left 55%, "
-        "dark brand-color panel right 45%. At top: 'SHADE' in spaced small caps. "
-        "Circular color swatch. Color/shade name in large italic serif. Center name + thin line at bottom.",
-
-        "ASYMMETRIC TYPOGRAPHY: Photo occupies right 60%, slightly cropped. Left strip: brand background. "
-        "Service name rotated 90° reading bottom-to-top in brand primary, very large. "
-        "Thin ornamental line between strip and photo. Monogram circle at top.",
-    ],
-    "educational": [
-        "ILLUSTRATED CONCEPT: Service-specific illustrated icon (drawn eye for lashes, nail shape for "
-        "nails, leaf for organic treatments) as central graphic on gradient background. "
-        "Service name in large serif below. Tagline. CTA bar at bottom. Can work without photos.",
-
-        "SPLIT PANEL INFO: Photo left 55%, brand-color info panel right. Panel has: service name "
-        "bold top, ornamental divider ─◇─, 3 benefit points with sparkle bullets ✦, center name bottom.",
-
-        "NUMBERED STEPS: Photo at top 40% full-width. Below on brand background: "
-        "3 numbered steps or facts, each preceded by a circle number in accent color. "
-        "Ornamental header line with diamond divider.",
-
-        "ICON GRID: No large photo needed — 4-quadrant grid, each quadrant has a small illustrated "
-        "icon + 1-line benefit. Center photo or color as background. Service name as title. Brand colors.",
-    ],
-    "behind_scenes": [
-        "FULL-BLEED + STARS: Photo nearly fills the entire frame. Dark vignette fading from edges. "
-        "Small sparkle star accents ✦ ✧ scattered at corners. Service name SMALL CAPS "
-        "in a thin header bar. Center name in footer bar. Minimal, luxury.",
-
-        "TILTED POLAROID: Single photo as a large polaroid card (white border, rotated 2-3°) — "
-        "polaroid covers 75%+ of the frame, only thin brand-color corners visible. "
-        "Service name handwritten-style in polaroid bottom margin. Center name in tiny font below. "
-        "2-3 small decorative dots in the exposed background corners only.",
-
-        "STORY TAG AUTHENTIC: Photo full-frame, authentic. Top: pill-shaped location tag "
-        "in primary color with center name. Bottom: thin translucent strip with service name. "
-        "That's it — raw and real.",
-
-        "CINEMATIC FRAME: Photo with thin inner border/frame in accent color (like a cinema frame). "
-        "Top bar: center name in small caps. Bottom: service name italic. Letterbox feel.",
-    ],
-    "promo": [
-        "ILLUSTRATED PROMO: No client photo needed — illustrated beauty icon on gradient background "
-        "(primary → secondary color). Service name LARGE serif center. Italic tagline. "
-        "Solid CTA bar at bottom in dark primary. Works even without a photo.",
-
-        "BOLD SPLIT: Photo left 50%. Right 50%: solid primary color block. "
-        "Service name large + bold serif. Thin ornamental divider line. "
-        "'Prenota ora' with accent underline. Center name small + footer ornament ─◇─.",
-
-        "FULL-BLEED CTA: Photo fills frame. Dark semi-transparent overlay on bottom third. "
-        "Service name large italic white. 'Prenota ora →' in accent color below. "
-        "Center name small. Sparkle accents ✦ top corners.",
-
-        "HEADER FOCUS: Large decorative header bar in primary with ornamental scrollwork. "
-        "Photo below (full width, 55%). Footer bar with center name + CTA.",
-    ],
-}
-
-# Direzione degli elementi grafici per stile visivo del brand
-_STYLE_GRAPHIC_DIRECTION: dict = {
+# Caratteristiche brand per stile visivo
+_STYLE_CHARACTERISTICS: dict = {
     "minimal": (
-        "BRAND GRAPHIC STYLE: Clean restraint. Use thin lines, generous whitespace, "
-        "at most 1 delicate ornamental element. Typography does the heavy lifting. "
-        "The polaroid frame or thin ornamental divider works well. Nothing garish."
+        "- Minimal luxury aesthetic\n"
+        "- Clean editorial composition\n"
+        "- Delicate feminine restraint\n"
+        "- Premium beauty campaign feel"
     ),
     "luxury": (
-        "BRAND GRAPHIC STYLE: Refined opulence. Ornamental dividers with diamond symbols (◇ ❖), "
-        "sparkle accents (✦ ✧), wide letter-spacing on all caps text, monogram circle. "
-        "Gold/accent color details. Think premium beauty editorial — Vogue Italia level."
+        "- Opulent luxury aesthetic\n"
+        "- Rich refined editorial style\n"
+        "- Ornamental feminine elegance\n"
+        "- High-end premium beauty feel"
     ),
     "naturale": (
-        "BRAND GRAPHIC STYLE: Organic warmth. Soft illustrated botanical elements, "
-        "brushstroke decorative accents, warm vignette on photos. "
-        "Handwritten-feel typography. Earthy and genuine, not corporate."
+        "- Natural organic aesthetic\n"
+        "- Warm authentic editorial style\n"
+        "- Soft botanical warmth\n"
+        "- Genuine beauty campaign feel"
     ),
     "colorato": (
-        "BRAND GRAPHIC STYLE: Bold and joyful. Overlapping colored shapes, strong color blocks, "
-        "energetic composition. Can be more graphic and less restrained than other styles. "
-        "The illustrated icon concept works especially well here."
+        "- Vibrant joyful aesthetic\n"
+        "- Bold colorful editorial style\n"
+        "- Warm energetic femininity\n"
+        "- Inviting beauty campaign feel"
     ),
     "moderno": (
-        "BRAND GRAPHIC STYLE: Contemporary sharpness. Bold geometric elements — "
-        "diagonal lines, rectangle blocks, strong typographic presence. "
-        "High contrast between primary and background. Confident and forward."
+        "- Modern bold aesthetic\n"
+        "- Geometric contemporary editorial style\n"
+        "- Sharp feminine edge\n"
+        "- Cutting-edge beauty campaign feel"
     ),
 }
+
+# Regole tipografiche per font style
+_TYPOGRAPHY_RULES: dict = {
+    "serif_elegant": (
+        "- Use an elegant serif style similar to Playfair Display\n"
+        "- Italic serif for the service name\n"
+        "- Small caps or spaced uppercase for micro-labels\n"
+        "- Never use bold, heavy, playful, trendy, handwritten, or decorative fonts"
+    ),
+    "sans_modern": (
+        "- Use a clean modern sans-serif similar to Inter or Helvetica Neue\n"
+        "- Light weight for the service name\n"
+        "- Spaced uppercase for micro-labels\n"
+        "- Never use heavy, decorative, handwritten, or playful fonts"
+    ),
+    "mixed": (
+        "- Elegant serif (Playfair Display style) for the service name\n"
+        "- Clean sans-serif for supporting micro-labels\n"
+        "- Never use bold, heavy, handwritten, or decorative fonts"
+    ),
+}
+
+
+def _get_treatment_area(service_name: str) -> str:
+    """Restituisce la descrizione della zona protetta in base al servizio."""
+    s = (service_name or "").lower()
+    if any(k in s for k in ["ciglia", "lash", "lamina", "extension"]):
+        return "eye area, lashes, eyelids, and brows"
+    elif any(k in s for k in ["sopracciglia", "brow", "henna"]):
+        return "brow area and eye zone"
+    elif any(k in s for k in ["unghie", "nail", "smalto", "manicure", "pedicure", "gel"]):
+        return "nails, fingertips, and hands"
+    elif any(k in s for k in ["viso", "face", "pulizia", "peeling", "dermapen", "filler"]):
+        return "skin texture, face detail, and pore visibility"
+    elif any(k in s for k in ["laser", "epilazione", "diodo"]):
+        return "treated skin area and surrounding skin"
+    elif any(k in s for k in ["massaggio", "corpo", "body", "rimodellante"]):
+        return "body contour and skin detail"
+    else:
+        return "the main treatment result area"
 
 
 # ── 2. Generazione brief visivo ────────────────────────────────────
@@ -1030,113 +1014,160 @@ async def generate_image(
             logger.warning(f"Impossibile scaricare foto {url}: {e}")
 
     sp = social_profile  # alias locale
-    visual_style = sp.get("visual_style") or sp.get("style") or "minimal"
-    photo_style = sp.get("photo_style") or "bright_natural"
+    visual_style = (sp.get("visual_style") or sp.get("style") or "minimal").lower().split()[0]
     typo_style = sp.get("typography_style") or "serif_elegant"
     accent_color = sp.get("accent_color") or secondary_color
     bg_color = sp.get("background_color") or "#fdf5f0"
 
-    photo_treatment = {
-        "bright_natural": "bright, natural lighting — warm window light feel, vivid and clean colors",
-        "warm_moody":     "warm moody treatment — amber tones, soft shadows, intimate and cozy feel",
-        "clean_white":    "clean clinical look — flat even lighting, neutral white balance, ultra clean",
-        "dark_luxury":    "dark luxury feel — deep rich tones, strong contrasts, premium and dramatic",
-    }.get(photo_style, "bright, natural lighting")
+    brand_characteristics = _STYLE_CHARACTERISTICS.get(visual_style, _STYLE_CHARACTERISTICS["minimal"])
+    typography_rules = _TYPOGRAPHY_RULES.get(typo_style, _TYPOGRAPHY_RULES["serif_elegant"])
+    layout_system = _ARCHETYPE_LAYOUTS.get(archetype, _ARCHETYPE_LAYOUTS["editorial"])
+    treatment_area = _get_treatment_area(service_name)
 
-    font_style = {
-        "serif_elegant": "elegant serif font (Playfair Display or similar)",
-        "sans_modern":   "modern clean sans-serif (Inter or Helvetica)",
-        "mixed":         "serif for titles, sans-serif for supporting text",
-    }.get(typo_style, "elegant serif font")
-
-    style_feel = {
-        "minimal":   "minimal, clean and restrained — lots of breathing space, nothing unnecessary",
-        "luxury":    "opulent luxury — rich textures, refined details, premium editorial feel",
-        "naturale":  "natural and organic — earthy palette, soft edges, botanical warmth",
-        "colorato":  "vibrant and joyful — bold colors, energetic, warm and inviting",
-        "moderno":   "modern and bold — geometric elements, strong type, contemporary edge",
-    }.get((visual_style or "minimal").lower().split()[0], "clean and professional")
-
-    graphic_direction = _STYLE_GRAPHIC_DIRECTION.get(
-        (visual_style or "minimal").lower().split()[0], _STYLE_GRAPHIC_DIRECTION["minimal"]
+    # Testo richiesto nella grafica — solo nome servizio
+    required_text_line = (
+        f"- Required text: \"{service_name}\" (service name, primary text element)\n"
+        if service_name else ""
+    )
+    optional_text_note = (
+        f"- Optional micro-text: \"IL RISULTATO\" · \"{center_name}\"\n"
+        f"- Text hierarchy: service name = primary · 'IL RISULTATO' = micro-label · brand name = smallest\n"
+        f"- Text must be short, elegant, highly legible, and always secondary to the photo\n"
+        f"- Do NOT add slogans, promo language, descriptions, hashtags, prices, or CTAs\n"
     )
 
-    # Concetti visivi per archetype
-    inspirations = _ARCHETYPE_INSPIRATIONS.get(archetype, _ARCHETYPE_INSPIRATIONS["editorial"])
-    insp_str = "\n\n".join(f"  CONCEPT {i+1}: {c}" for i, c in enumerate(inspirations))
-    creative_goal = _ARCHETYPE_CREATIVE_GOALS.get(archetype, "Create a beautiful, on-brand Instagram post.")
-
     if brief:
-        composition = f"APPROVED VISUAL BRIEF — follow this precisely, the user already approved it:\n{brief}"
+        layout_section = (
+            f"APPROVED VISUAL BRIEF — the user already approved this, follow it precisely:\n{brief}"
+        )
     else:
-        composition = (
-            f"CREATIVE GOAL: {creative_goal}\n\n"
-            f"VISUAL CONCEPTS — pick one and execute it with precision, or combine/adapt:\n"
-            f"{insp_str}\n\n"
-            f"{graphic_direction}\n\n"
-            f"{_GRAPHIC_VOCABULARY}"
+        layout_section = (
+            f"APPROVED LAYOUT SYSTEM — choose only one of these, do not invent others:\n\n"
+            f"{layout_system}"
         )
 
-    # Contesto servizio opzionale per arricchire la generazione
-    service_context_en = ""
-    if service_desc:
-        service_context_en += f"Service description: {service_desc}\n"
-    if service_benefits:
-        service_context_en += f"Key benefits: {service_benefits}\n"
-
-    # Testi nella grafica — solo nome servizio obbligatorio, nome centro opzionale
-    required_texts = f"'{service_name}'" if service_name else ""
-
     prompt = (
-        # ── VINCOLO ASSOLUTO — prima di qualsiasi altra cosa ──────────
-        f"⚠️ LOCKED PHOTO CONSTRAINT — apply this before reading anything else:\n"
-        f"The attached photo(s) are LOCKED and IMMUTABLE. They are authentic real-life treatment "
-        f"results shot by the beautician. You MUST NOT alter them in any way:\n"
-        f"  - Do NOT reposition hands, fingers, nails, or any body part\n"
-        f"  - Do NOT change nail color, lash shape, skin tone, eye shape, or hair\n"
-        f"  - Do NOT apply filters, color grading, or lighting changes to the photo\n"
-        f"  - Do NOT redraw, reimagine, or regenerate any part of the photo\n"
-        f"The photo is a fixed pixel-perfect background. Your ONLY task is to add a graphic "
-        f"layer on top of it — like placing text and design stickers onto a printed photograph. "
-        f"The photo beneath never changes.\n\n"
+        # ── LOCKED PHOTO RULE — prima di tutto ────────────────────────
+        f"LOCKED PHOTO RULE — APPLY FIRST\n\n"
+        f"The attached photo is LOCKED, AUTHENTIC, and IMMUTABLE.\n"
+        f"It is a real treatment-result photo provided by the beauty center.\n"
+        f"Do NOT modify the photo in any way.\n\n"
+        f"Forbidden:\n"
+        f"- Do NOT retouch, redraw, regenerate, enhance, restyle, or reinterpret the photo\n"
+        f"- Do NOT change composition, pose, anatomy, skin, lashes, nails, hair, or lighting\n"
+        f"- Do NOT add filters, blur, recoloring, beauty effects, or background replacement\n"
+        f"- Do NOT move, crop into, cover, distort, or visually interfere with the treatment result\n\n"
+        f"The photo must remain exactly as provided.\n"
+        f"Your task is ONLY to add a graphic overlay layer on top, "
+        f"like premium editorial design printed over a photograph.\n\n"
+
+        f"---\n\n"
 
         # ── TASK ───────────────────────────────────────────────────────
-        f"TASK: Add a clean, elegant graphic layer on top of the provided photo "
-        f"to create an Instagram post for an Italian beauty center. "
-        f"Refined and delicate — never cluttered.\n\n"
+        f"TASK\n\n"
+        f"Create a 1:1 Instagram post for an Italian beauty center.\n"
+        f"The final image must feel refined, minimal, luxurious, and brand-consistent.\n"
+        f"The outcome must look like part of a recognizable editorial series, "
+        f"not a one-off creative experiment.\n\n"
 
-        f"BRAND: {center_name}\n"
-        f"SERVICE: {service_name or '(see photos)'}\n"
-        f"{service_context_en}"
-        f"PRIVACY: {consent_instruction}\n\n"
+        f"---\n\n"
 
-        # ── BRAND IDENTITY (solo per il layer grafico, NON per la foto) ─
-        f"BRAND IDENTITY — apply ONLY to the graphic layer, never to the photo:\n"
-        f"  Feel: {style_feel}\n"
-        f"  Typography: {font_style}\n"
-        f"  Colors (use EXACTLY — no substitutions):\n"
-        f"    Primary {primary_color} · Secondary {secondary_color} · Accent {accent_color} · Background {bg_color}\n\n"
+        # ── BRAND ──────────────────────────────────────────────────────
+        f"BRAND\n\n"
+        f"Brand name: {center_name}\n"
+        f"Service: {service_name or '(see photo)'}\n"
+        f"Privacy rule: {consent_instruction}\n\n"
 
-        # ── DIREZIONE CREATIVA ─────────────────────────────────────────
-        f"{composition}\n\n"
+        f"---\n\n"
 
-        # ── REGOLE LAYER GRAFICO ───────────────────────────────────────
-        f"GRAPHIC LAYER RULES:\n"
-        f"• Photo fills the entire frame — exceptions only for split layouts (photo min 50% of side) "
-        f"or large polaroid (card min 70% of frame width)\n"
-        f"• Treatment result (nails, lashes, skin) must be fully visible — NO text or graphics over it\n"
-        f"• Place text only in: thin top/bottom strip, empty corners, or translucent edge bar\n"
-        f"• Maximum 1-2 graphic elements — empty space is sophistication, not a mistake\n"
-        f"• Thin lines, light overlays, small refined typography — never bold or dominant\n\n"
+        # ── CORE BRAND SYSTEM ──────────────────────────────────────────
+        f"CORE BRAND SYSTEM — MUST REMAIN CONSISTENT ACROSS ALL POSTS\n\n"
+        f"Use the same graphic language every time.\n"
+        f"The design must look like it belongs to one ongoing brand series.\n\n"
+        f"Non-negotiable brand characteristics:\n"
+        f"{brand_characteristics}\n"
+        f"- Strong continuity from post to post\n\n"
+        f"Do NOT create a new visual style for each image.\n"
+        f"Do NOT improvise a different aesthetic direction.\n"
+        f"Do NOT mix unrelated graphic ideas.\n\n"
 
-        # ── REGOLE ASSOLUTE ────────────────────────────────────────────
-        f"ABSOLUTE RULES:\n"
-        f"- Use ONLY the provided photos — never generate or invent visual content\n"
-        f"- Brand colors EXACTLY as specified\n"
-        + (f"- Include this text on the graphic: {required_texts}\n" if required_texts else "")
-        + f"- 1:1 square format, publication-ready\n\n"
+        f"---\n\n"
 
-        f"Create the graphic layer now."
+        # ── FIXED VISUAL IDENTITY ──────────────────────────────────────
+        f"FIXED VISUAL IDENTITY\n\n"
+        f"Typography:\n"
+        f"{typography_rules}\n\n"
+        f"Brand colors — USE EXACTLY THESE:\n"
+        f"- Primary: {primary_color}\n"
+        f"- Secondary: {secondary_color}\n"
+        f"- Accent: {accent_color}\n"
+        f"- Background: {bg_color}\n\n"
+        f"Graphic language:\n"
+        f"- Thin lines only\n"
+        f"- Very subtle luxury detailing\n"
+        f"- Generous breathing space\n"
+        f"- Maximum 1 refined decorative element\n"
+        f"- Typography must carry the composition\n"
+        f"- Empty space is intentional and premium\n\n"
+        f"Do NOT use: busy decoration, multiple ornaments, oversized stickers, "
+        f"loud textures, dramatic effects, collage look, trendy social-media clutter.\n\n"
+
+        f"---\n\n"
+
+        # ── MANDATORY COMPOSITION LOGIC ────────────────────────────────
+        f"MANDATORY COMPOSITION LOGIC\n\n"
+        f"Before placing any graphic element, visually identify the treatment result area.\n"
+        f"For this service, the protected focal zone is: {treatment_area}.\n\n"
+        f"Create a protected safe area around the treatment result:\n"
+        f"- No text over the treatment area\n"
+        f"- No line, ornament, gradient edge, badge, icon, or frame edge may interfere "
+        f"with the treated area\n"
+        f"- All graphic content must stay in peripheral negative space only\n\n"
+        f"Preferred placement zones: top margin, bottom margin, outer side margins, "
+        f"empty corners, translucent edge strip only if it does NOT cover treatment details.\n\n"
+        f"If the photo has little or no negative space: reduce text size, use only one text "
+        f"block, prioritize visibility of the treatment result over design ambition.\n\n"
+
+        f"---\n\n"
+
+        # ── LAYOUT SYSTEM ──────────────────────────────────────────────
+        f"{layout_section}\n\n"
+        f"Important: choose the most suitable layout based on protection of the treatment result. "
+        f"Prefer consistency over novelty.\n\n"
+
+        f"---\n\n"
+
+        # ── TEXT RULES ─────────────────────────────────────────────────
+        f"TEXT RULES\n\n"
+        f"{required_text_line}"
+        f"{optional_text_note}\n"
+
+        f"---\n\n"
+
+        # ── ERROR PREVENTION ───────────────────────────────────────────
+        f"ERROR PREVENTION RULES\n\n"
+        f"Avoid these common mistakes:\n"
+        f"- covering the treatment result with text or graphics\n"
+        f"- making the graphic too large or too loud\n"
+        f"- using too many decorative elements\n"
+        f"- letting the overlay compete with the treatment result\n"
+        f"- turning the image into a poster instead of a premium beauty post\n"
+        f"- making the design feel generic, trendy, or inconsistent\n\n"
+        f"If the photo is visually busy: simplify further, use fewer elements, "
+        f"use smaller typography, keep more empty space, protect the result first.\n\n"
+
+        f"---\n\n"
+
+        # ── FINAL OUTPUT ───────────────────────────────────────────────
+        f"FINAL OUTPUT REQUIREMENTS\n\n"
+        f"- 1:1 square Instagram-ready composition\n"
+        f"- Use only the provided photo — do not generate new imagery\n"
+        f"- Do not alter the photo\n"
+        f"- Preserve full visibility of the treatment result\n"
+        f"- Apply only the approved brand system\n"
+        f"- Final result must feel elegant, premium, minimal, and consistent "
+        f"with a luxury beauty brand series\n\n"
+        f"Create the final graphic overlay now."
     )
 
     try:
