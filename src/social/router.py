@@ -54,13 +54,33 @@ class UpdateStatusRequest(BaseModel):
 
 
 class BrandProfileRequest(BaseModel):
-    tone_of_voice: Optional[str] = None
-    style: Optional[str] = None
-    brand_keywords: Optional[list[str]] = None
+    # Identità
+    tagline: Optional[str] = None              # "La bellezza autentica, ogni giorno"
+    city: Optional[str] = None                 # "Milano"
+    price_positioning: Optional[str] = None    # economico | mid-range | premium | luxury
+    unique_selling_point: Optional[str] = None # "Uniche in città con laser XYZ"
+
+    # Audience
+    target_description: Optional[str] = None   # "Donne 30-50 anni, professioniste..."
+
+    # Voce
+    tone_of_voice: Optional[str] = None        # "caldo e professionale"
+    communication_style: Optional[str] = None  # "informale, dai del tu"
+    emoji_usage: Optional[str] = None          # "moderato (2-3)" | "pochi (1-2)" | "nessuno"
+    avoid_words: Optional[list[str]] = None    # parole/frasi da non usare mai
+    signature_phrases: Optional[list[str]] = None  # frasi ricorrenti del brand
+
+    # Contenuto
+    content_pillars: Optional[list[str]] = None    # temi editoriali
+    brand_hashtags: Optional[list[str]] = None     # hashtag fissi sempre inclusi
+    brand_keywords: Optional[list[str]] = None     # (legacy, mantenuto)
     content_frequency: Optional[int] = None
     platforms: Optional[list[str]] = None
     generation_day: Optional[str] = None
     generation_hour: Optional[int] = None
+
+    # Visivo
+    style: Optional[str] = None               # minimal | luxury | naturale | colorato
 
 
 # ── Endpoints ──────────────────────────────────────────────────────

@@ -241,6 +241,100 @@ def _get_service_rules(service_name: str) -> dict:
     return _DEFAULT_RULES
 
 
+# ── Brand system prompt ────────────────────────────────────────────
+
+def _build_brand_system_prompt(tenant: dict) -> str:
+    """
+    Assembla il system instruction completo del brand da passare a TUTTE
+    le chiamate Gemini. Così ogni output (caption, istruzioni foto, brief,
+    immagine) rispetta automaticamente voce, stile e regole del centro.
+    """
+    sp = tenant.get("social_profile") or {}
+    name = tenant.get("display_name") or tenant.get("name", "Centro Estetico")
+    bio = (tenant.get("bio") or "").strip()
+
+    # Identità
+    tagline = sp.get("tagline") or ""
+    city = sp.get("city") or ""
+    positioning = sp.get("price_positioning") or "mid-range"
+    usp = sp.get("unique_selling_point") or ""
+
+    # Audience
+    target = sp.get("target_description") or "Donne 25-45 anni che si prendono cura di sé"
+
+    # Voce
+    tone = sp.get("tone_of_voice") or "caldo e professionale"
+    if isinstance(tone, list):
+        tone = ", ".join(tone)
+    comm_style = sp.get("communication_style") or "informale, dai del tu"
+    emoji_usage = sp.get("emoji_usage") or "moderato (2-3 per post)"
+
+    avoid = sp.get("avoid_words") or ["ogni trattamento", "la costanza premia", "risultati visibili"]
+    avoid_str = ", ".join(f'"{w}"' for w in avoid)
+
+    signatures = sp.get("signature_phrases") or []
+    sig_block = "\n".join(f"  • {p}" for p in signatures) if signatures else "  (nessuna frase impostata)"
+
+    # Contenuto
+    pillars = sp.get("content_pillars") or [
+        "Risultati dei trattamenti", "Educazione beauty", "Behind the scenes", "Promozioni"
+    ]
+    pillars_str = "\n".join(f"  • {p}" for p in pillars)
+
+    brand_hashtags = sp.get("brand_hashtags") or []
+    hashtags_str = " ".join(brand_hashtags) if brand_hashtags else "(nessuno impostato)"
+
+    # Visivo
+    visual_style = sp.get("style") or "minimal e professionale"
+    primary_color = tenant.get("theme_primary_color") or "#6b2d4e"
+    secondary_color = tenant.get("theme_secondary_color") or "#c9a0b4"
+
+    lines = [
+        f'Sei il social media manager esclusivo di "{name}".',
+        "La tua missione: creare contenuti autentici che sembrino scritti da una persona vera, non da un robot.",
+        "",
+        "━━━ IDENTITÀ ━━━",
+        f"Centro: {name}",
+    ]
+    if city:
+        lines.append(f"Città: {city}")
+    if tagline:
+        lines.append(f'Tagline: "{tagline}"')
+    if bio:
+        lines.append(f"Presentazione: {bio}")
+    lines.append(f"Posizionamento: {positioning}")
+    if usp:
+        lines.append(f"Punto di forza unico: {usp}")
+    lines += [
+        "",
+        "━━━ CLIENTELA TARGET ━━━",
+        f"  {target}",
+        "",
+        "━━━ VOCE DEL BRAND ━━━",
+        f"Tono: {tone}",
+        f"Stile comunicativo: {comm_style}",
+        f"Emoji: {emoji_usage}",
+        "",
+        "Frasi tipiche del brand (usale come ispirazione, non copiare letteralmente):",
+        sig_block,
+        "",
+        f"NON usare MAI queste parole o frasi: {avoid_str}",
+        'NON usare mai frasi generiche come: "ogni trattamento è unico", "la cura parte da te", "risultati che parlano da soli", "prendersi cura di sé"',
+        "",
+        "━━━ PILASTRI EDITORIALI ━━━",
+        pillars_str,
+        "",
+        "━━━ HASHTAG FISSI DEL BRAND (includili sempre) ━━━",
+        f"  {hashtags_str}",
+        "",
+        "━━━ STILE VISIVO ━━━",
+        f"Stile grafico: {visual_style}",
+        f"Colori brand: {primary_color} (primario), {secondary_color} (secondario)",
+    ]
+
+    return "\n".join(lines)
+
+
 # ── 1. Selezione e pianificazione settimanale ──────────────────────
 
 async def select_and_plan_week(
@@ -291,6 +385,9 @@ async def select_and_plan_week(
     # Limita al content_frequency
     candidati = candidati[:content_frequency]
 
+    # Assembla il system prompt del brand una volta sola
+    brand_system_prompt = _build_brand_system_prompt(tenant)
+
     # Per ogni candidato: Python schema base, Gemini personalizza istruzioni + caption
     results = []
     for c in candidati:
@@ -302,15 +399,14 @@ async def select_and_plan_week(
             service_name=service_name,
             archetype=rules["archetype"],
             base_checklist=rules["checklist"],
+            system_prompt=brand_system_prompt,
         )
 
         # Gemini genera caption e hashtag
         caption, hashtags = await _generate_caption_and_hashtags(
             service_name=service_name,
             archetype=rules["archetype"],
-            center_name=center_name,
-            tone_of_voice=tone_of_voice,
-            brand_keywords=brand_keywords,
+            system_prompt=brand_system_prompt,
         )
 
         results.append({
@@ -332,6 +428,7 @@ async def _personalize_checklist_instructions(
     service_name: str,
     archetype: str,
     base_checklist: list[dict],
+    system_prompt: str = "",
 ) -> list[dict]:
     """
     Gemini personalizza le istruzioni foto per il servizio specifico.
@@ -375,6 +472,7 @@ Rispondi SOLO con JSON:
             model=MODEL_TEXT,
             contents=prompt,
             config=types.GenerateContentConfig(
+                system_instruction=system_prompt if system_prompt else None,
                 temperature=0.4,
                 response_mime_type="application/json",
             ),
@@ -398,12 +496,13 @@ Rispondi SOLO con JSON:
 async def _generate_caption_and_hashtags(
     service_name: str,
     archetype: str,
-    center_name: str,
-    tone_of_voice: str,
-    brand_keywords: list,
+    system_prompt: str = "",
 ) -> tuple[str, list[str]]:
-    """Chiama Gemini per caption e hashtag."""
-
+    """
+    Chiama Gemini per caption e hashtag.
+    Il contesto brand (tono, stile, hashtag fissi, parole vietate) viene
+    dal system_prompt assemblato da _build_brand_system_prompt().
+    """
     archetype_hint = {
         "before_after": "mostra la trasformazione prima/dopo",
         "editorial": "valorizza il risultato estetico del trattamento",
@@ -412,25 +511,20 @@ async def _generate_caption_and_hashtags(
         "promo": "invita a prenotare con un'offerta",
     }.get(archetype, "valorizza il trattamento")
 
-    prompt = f"""Sei un esperto di social media per centri estetici italiani.
+    prompt = f"""Scrivi una caption Instagram e hashtag per questo contenuto:
 
-Scrivi una caption Instagram e una lista di hashtag per questo contenuto:
-
-CENTRO: {center_name}
 SERVIZIO: {service_name}
 TIPO DI POST: {archetype_hint}
-TONO: {tone_of_voice}
-PAROLE CHIAVE BRAND: {", ".join(brand_keywords) if brand_keywords else "cura, benessere, bellezza"}
 
 REGOLE CAPTION:
 - Prima riga: menziona il nome esatto del servizio "{service_name}"
-- Descrivi il risultato specifico di QUESTO servizio (non frasi generiche)
-- CTA finale (es. "Prenota ora → link in bio")
-- 2-3 emoji pertinenti
+- Descrivi il risultato specifico di QUESTO servizio, mai frasi generiche
+- CTA finale coerente col tono del brand
+- Rispetta RIGOROSAMENTE le regole su emoji, parole vietate e tono del system instruction
 - Max 100 parole
-- NON usare: "ogni trattamento", "la costanza premia", "risultati visibili"
 
-HASHTAG: 8-10 hashtag specifici per {service_name} (no solo generici).
+HASHTAG: 8-12 hashtag. Includi SEMPRE gli hashtag fissi del brand (nel system instruction)
+più hashtag specifici per "{service_name}".
 
 Rispondi SOLO con JSON valido:
 {{
@@ -444,6 +538,7 @@ Rispondi SOLO con JSON valido:
             model=MODEL_TEXT,
             contents=prompt,
             config=types.GenerateContentConfig(
+                system_instruction=system_prompt if system_prompt else None,
                 temperature=0.7,
                 response_mime_type="application/json",
             ),
@@ -452,7 +547,7 @@ Rispondi SOLO con JSON valido:
         return data.get("caption", ""), data.get("hashtags", [])
     except Exception as e:
         logger.error(f"Errore generazione caption per {service_name}: {e}")
-        return f"Scopri il trattamento {service_name} da {center_name}! Prenota ora → link in bio", []
+        return f"Scopri il trattamento {service_name}! Prenota ora → link in bio", []
 
 
 # ── 2. Generazione brief visivo ────────────────────────────────────
@@ -471,12 +566,10 @@ async def generate_visual_brief(
     notes = content_record.get("estetista_notes") or ""
     consent = content_record.get("client_consent", "details_only")
 
+    brand_system_prompt = _build_brand_system_prompt(tenant)
     social_profile = tenant.get("social_profile") or {}
     center_name = tenant.get("display_name") or tenant.get("name", "Centro Estetico")
     style = social_profile.get("style", "minimal")
-    tone = social_profile.get("tone_of_voice", "professionale e caldo")
-    if isinstance(tone, list):
-        tone = ", ".join(tone)
     primary_color = tenant.get("theme_primary_color") or "#6b2d4e"
     secondary_color = tenant.get("theme_secondary_color") or "#c9a0b4"
 
@@ -494,29 +587,27 @@ async def generate_visual_brief(
         except Exception as e:
             logger.warning(f"Impossibile scaricare foto {url}: {e}")
 
-    prompt = f"""Sei un designer esperto di contenuti social per centri estetici italiani.
-
-Stai pianificando un contenuto per: {center_name}
+    prompt = f"""Stai pianificando un contenuto social per: {center_name}
 Servizio: {service_name}
 Tipo di contenuto: {archetype}
-Stile brand: {style} — tono {tone}
-Colori brand: principale {primary_color}, secondario {secondary_color}
+Stile grafico: {style} — colori brand: {primary_color} (primario), {secondary_color} (secondario)
 {f"Note estetista: {notes}" if notes else ""}
 Regola privacy: {consent_instruction}
 
 Analizza le foto che ti mando e descrivi IN ITALIANO SEMPLICE cosa creerai.
 Scrivi come se stessi spiegando a un'amica cosa stai per fare, con entusiasmo.
+Rispetta lo stile e il tono del brand descritto nel system instruction.
 
-Struttura la risposta in questi paragrafi:
+Struttura la risposta ESATTAMENTE così (usa le emoji come titoli):
 
 📐 LAYOUT
 (Come sistemerai le foto — es. "Metterò la tua foto al centro...")
 
 🎨 STILE
-(Colori, sfondo, effetti — es. "Lo sfondo sarà color crema...")
+(Colori, sfondo, effetti — coerenti col brand)
 
 ✍️ TESTO
-(Cosa scriverai sopra — es. "In alto metterò il nome del servizio...")
+(Cosa scriverai sopra — coerente col tono del brand)
 
 ✨ EFFETTO FINALE
 (Come apparirà il post finito)
@@ -533,7 +624,10 @@ Regole:
         response = await client.aio.models.generate_content(
             model=MODEL_TEXT,
             contents=contents,
-            config=types.GenerateContentConfig(temperature=0.7),
+            config=types.GenerateContentConfig(
+                system_instruction=brand_system_prompt,
+                temperature=0.7,
+            ),
         )
         brief = response.text.strip()
         logger.info(f"Brief visivo generato per content {content_record.get('id')}")
@@ -558,6 +652,7 @@ async def generate_image(
     service_name = content_record.get("service_name", "trattamento")
     brief = content_record.get("visual_brief_override") or content_record.get("visual_brief") or ""
 
+    brand_system_prompt = _build_brand_system_prompt(tenant)
     social_profile = tenant.get("social_profile") or {}
     center_name = tenant.get("display_name") or tenant.get("name", "Centro Estetico")
     style = social_profile.get("style", "minimal")
