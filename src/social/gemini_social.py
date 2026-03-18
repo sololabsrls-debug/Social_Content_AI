@@ -24,7 +24,7 @@ from PIL import Image
 logger = logging.getLogger("SOCIAL.gemini")
 
 MODEL_TEXT = "gemini-2.5-flash"
-MODEL_IMAGE = "gemini-3.1-flash-image-preview"
+MODEL_IMAGE = "gemini-3-pro-image-preview"
 
 _client: genai.Client | None = None
 
@@ -1153,7 +1153,6 @@ async def generate_image(
                 response_modalities=["TEXT", "IMAGE"],
                 image_config=types.ImageConfig(
                     aspect_ratio="1:1",
-                    image_size="1K",
                 ),
             ),
         )
