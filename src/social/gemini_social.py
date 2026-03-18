@@ -1090,14 +1090,13 @@ async def generate_image(
         f"Be creative with the graphic layer — you have full freedom on style, typography, "
         f"ornaments, and mood. Make it elegant and on-brand.\n\n"
 
-        f"TEXT PLACEMENT — strict rule:\n"
-        f"Place ALL text and graphic elements ONLY in one of these two zones:\n"
-        f"  • A thin strip at the very TOP of the frame (top 12% maximum)\n"
-        f"  • A thin strip at the very BOTTOM of the frame (bottom 12% maximum)\n"
-        f"The entire central area of the photo (middle 76%) must remain completely "
-        f"free of any text, labels, lines, ornaments, or overlays.\n"
-        f"This is because the treatment result is always in the center of the photo "
-        f"and must be fully visible.\n\n"
+        f"Before placing any text or graphic element, look at the photo and identify:\n"
+        f"1. Where the treatment result is (the main subject — nails, lashes, skin, etc.)\n"
+        f"2. Where the naturally empty or neutral areas are (plain background, "
+        f"uniform surfaces, soft edges with little detail)\n\n"
+        f"Place ALL text and graphic elements exclusively in the empty/neutral areas "
+        f"you identified. Never place anything over the treatment result or over "
+        f"visually complex areas of the photo.\n\n"
 
         f"Output: 1:1 square, publication-ready."
     )
