@@ -26,6 +26,7 @@ from src.social.gemini_social import (
     select_and_plan_week,
     generate_visual_brief,
     generate_image,
+    generate_image_variants,
 )
 
 logger = logging.getLogger("SOCIAL.pipeline")
@@ -53,13 +54,14 @@ def _save_images_to_storage(
     content_id: str,
     feed_bytes: bytes,
     story_bytes: bytes,
+    suffix: str = "",
 ) -> tuple[str, str]:
     """Salva feed e story su Supabase Storage, ritorna le URL pubbliche."""
     sb = get_supabase()
     bucket = "social-media"
 
-    feed_path = f"{tenant_id}/{content_id}/feed.jpg"
-    story_path = f"{tenant_id}/{content_id}/story.jpg"
+    feed_path = f"{tenant_id}/{content_id}/feed{suffix}.jpg"
+    story_path = f"{tenant_id}/{content_id}/story{suffix}.jpg"
 
     try:
         sb.storage.from_(bucket).upload(
@@ -279,10 +281,9 @@ async def generate_brief(content_id: str) -> bool:
 async def generate_image_for_content(content_id: str) -> bool:
     """
     Chiamato quando l'estetista approva il brief.
-    Genera l'immagine finale con gemini-3-pro-image-preview.
-    Salva su Supabase Storage e aggiorna status → draft.
+    Genera 3 varianti in parallelo con direzioni creative diverse.
+    Salva su Supabase Storage e aggiorna status → variants_ready.
     """
-    # Marca come "generating" subito (Lovable vede il loader)
     update_social_content(content_id, {"status": "generating"})
 
     content = get_social_content_by_id(content_id)
@@ -303,28 +304,38 @@ async def generate_image_for_content(content_id: str) -> bool:
     tenant = tenant_res.data or {}
 
     try:
-        feed_bytes, story_bytes = await generate_image(content, tenant)
+        variants = await generate_image_variants(content, tenant)
 
-        if not feed_bytes:
+        if not variants:
             update_social_content(content_id, {"status": "brief_ready"})
             return False
 
-        # Salva immagini su Supabase Storage
-        feed_url, story_url = _save_images_to_storage(
-            tenant_id, content_id, feed_bytes, story_bytes or b""
-        )
+        # Salva ogni variante su Supabase Storage
+        saved_variants = []
+        for v in variants:
+            suffix = f"_v{v['index']}"
+            feed_url, story_url = _save_images_to_storage(
+                tenant_id, content_id,
+                v["feed_bytes"], v.get("story_bytes") or b"",
+                suffix=suffix,
+            )
+            saved_variants.append({
+                "index": v["index"],
+                "direction": v["direction"],
+                "feed_url": feed_url,
+                "story_url": story_url,
+            })
 
         update_social_content(content_id, {
-            "image_url_feed": feed_url,
-            "image_url_story": story_url if story_bytes else None,
-            "status": "draft",
+            "image_variants": saved_variants,
+            "status": "variants_ready",
             "image_generated_at": datetime.now(ROME_TZ).isoformat(),
         })
 
-        logger.info(f"Immagine generata e salvata per content {content_id}")
+        logger.info(f"{len(saved_variants)} varianti generate per content {content_id}")
         return True
 
     except Exception as e:
-        logger.error(f"Errore generazione immagine {content_id}: {e}")
+        logger.error(f"Errore generazione varianti {content_id}: {e}")
         update_social_content(content_id, {"status": "brief_ready"})
         return False

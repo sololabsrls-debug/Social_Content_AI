@@ -8,6 +8,7 @@ Tre funzioni principali:
 3. generate_image()         → genera la grafica finale con gemini-3-pro-image-preview
 """
 
+import asyncio
 import io
 import json
 import logging
@@ -987,9 +988,68 @@ Regole:
 
 # ── 3. Generazione immagine ────────────────────────────────────────
 
+# Direzioni creative per le 3 varianti
+_VARIANT_DIRECTIONS = [
+    (
+        "minimal",
+        "Minimal and airy — the graphic layer is barely there. "
+        "Photo dominates completely. One line of text max, maximum breathing space. "
+        "Restraint is the entire design statement.",
+    ),
+    (
+        "editorial",
+        "Editorial and confident — strong typography presence, bold graphic composition. "
+        "Think Italian beauty magazine. Typography IS the design. Make it striking.",
+    ),
+    (
+        "intimate",
+        "Intimate and warm — close focus on the treatment result. "
+        "The graphic layer almost disappears. Authentic, raw, no design noise. "
+        "Just the result and a whisper of text.",
+    ),
+]
+
+
+async def generate_image_variants(
+    content_record: dict,
+    tenant: dict,
+) -> list[dict]:
+    """
+    Genera 3 varianti in parallelo con direzioni creative diverse.
+    Ritorna lista di dict con index, direction, feed_bytes, story_bytes.
+    """
+    tasks = [
+        generate_image(content_record, tenant, direction=key, direction_instruction=instr)
+        for key, instr in _VARIANT_DIRECTIONS
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    variants = []
+    for i, (direction_key, _) in enumerate(_VARIANT_DIRECTIONS):
+        result = results[i]
+        if isinstance(result, Exception):
+            logger.error(f"Variante '{direction_key}' fallita: {result}")
+            continue
+        if not result or result == (None, None):
+            continue
+        feed_bytes, story_bytes = result
+        if feed_bytes:
+            variants.append({
+                "index": i,
+                "direction": direction_key,
+                "feed_bytes": feed_bytes,
+                "story_bytes": story_bytes,
+            })
+
+    logger.info(f"Generate {len(variants)}/3 varianti per content {content_record.get('id')}")
+    return variants
+
+
 async def generate_image(
     content_record: dict,
     tenant: dict,
+    direction: str = "editorial",
+    direction_instruction: str = "",
 ) -> tuple[Optional[bytes], Optional[bytes]]:
     """
     Genera la grafica finale usando gemini-3-pro-image-preview.
@@ -1056,6 +1116,11 @@ async def generate_image(
 
         f"Be creative with the graphic layer — you have full freedom on layout, typography, "
         f"ornaments, and composition. Make it elegant and on-brand.\n\n"
+
+        + (
+            f"Creative direction for this variant: {direction_instruction}\n\n"
+            if direction_instruction else ""
+        ) +
 
         f"Output: 1:1 square, publication-ready."
     )

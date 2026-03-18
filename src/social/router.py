@@ -200,7 +200,7 @@ async def generate_image_endpoint(
     if not content or content["tenant_id"] != tenant["id"]:
         raise HTTPException(status_code=404, detail="Contenuto non trovato")
 
-    if content["status"] not in ("brief_ready", "draft"):
+    if content["status"] not in ("brief_ready", "draft", "variants_ready"):
         raise HTTPException(
             status_code=400,
             detail=f"Status '{content['status']}' non valido per generazione immagine"
@@ -213,6 +213,37 @@ async def generate_image_endpoint(
 
     background_tasks.add_task(_gen)
     return {"message": "Generazione immagine avviata", "content_id": content_id}
+
+
+class SelectVariantRequest(BaseModel):
+    variant_index: int
+
+
+@router.post("/social/content/{content_id}/select-variant")
+async def select_variant(
+    content_id: str,
+    req: SelectVariantRequest,
+    tenant: dict = Depends(get_tenant),
+):
+    """Seleziona una delle 3 varianti generate → copia le URL e passa a draft."""
+    content = get_social_content_by_id(content_id)
+    if not content or content["tenant_id"] != tenant["id"]:
+        raise HTTPException(status_code=404, detail="Contenuto non trovato")
+
+    if content["status"] != "variants_ready":
+        raise HTTPException(status_code=400, detail="Nessuna variante disponibile da selezionare")
+
+    variants = content.get("image_variants") or []
+    selected = next((v for v in variants if v["index"] == req.variant_index), None)
+    if not selected:
+        raise HTTPException(status_code=400, detail=f"Variante {req.variant_index} non trovata")
+
+    update_social_content(content_id, {
+        "image_url_feed": selected["feed_url"],
+        "image_url_story": selected.get("story_url"),
+        "status": "draft",
+    })
+    return {"message": "Variante selezionata", "content_id": content_id, "direction": selected["direction"]}
 
 
 @router.patch("/social/content/{content_id}/status")
@@ -261,4 +292,4 @@ async def save_brand_profile(
 
 @router.get("/social/health")
 async def health():
-    return {"status": "ok", "service": "social-content-ai", "version": "6.2-auto-square-crop"}
+    return {"status": "ok", "service": "social-content-ai", "version": "7.0-image-variants"}
