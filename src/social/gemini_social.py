@@ -746,25 +746,27 @@ _ARCHETYPE_CREATIVE_GOALS: dict = {
 
 _ARCHETYPE_INSPIRATIONS: dict = {
     "before_after": [
-        "TRANSFORMATION header: thin top bar in primary color with ornamental lines + 'TRANSFORMATION' "
-        "or 'PRIMA · DOPO' in spaced small caps. Photos as inset bordered cards side by side, "
-        "circle arrow icon ► between them. Footer bar with center name + sparkle ornaments ✦",
+        "TRANSFORMATION header: thin top bar in primary color with ornamental lines + 'PRIMA · DOPO' "
+        "in spaced small caps. BEFORE photo left half and AFTER photo right half, each photo fills "
+        "its half of the frame edge-to-edge. Thin ornamental divider at center (❖). "
+        "Footer bar with center name + sparkle ornaments ✦",
 
         "SPLIT FULL-BLEED: BEFORE photo left half, AFTER photo right half, both nearly full-height. "
         "Thin ornamental divider at center (❖ or ◇). Labels 'PRIMA' / 'DOPO' in bold italic serif "
         "overlaid on photos. Narrow brand-color strip at bottom with center name.",
 
-        "POLAROID DIPTYCH: Both photos styled as polaroid cards (white border, slight rotation in "
-        "opposite directions) on brand background color. Hand-lettered style labels below each. "
-        "Decorative corner ornaments on the background.",
+        "POLAROID DIPTYCH: Both photos as polaroid cards (white border, rotated in opposite directions), "
+        "each polaroid large (minimum 40% of frame width) — they nearly fill the frame, touching edges. "
+        "Hand-lettered 'PRIMA' / 'DOPO' in polaroid bottom margin. Brand background only visible in narrow gaps.",
 
         "REVEAL CONCEPT: AFTER photo full-frame with a vertical strip of BEFORE visible on the left "
         "edge (like a page being turned). 'PRIMA ↔ DOPO' label. Monogram circle top corner.",
     ],
     "editorial": [
-        "POLAROID ON COLOR: Photo rotated 3-4° as a polaroid (white border, thicker bottom) "
-        "placed on brand background. 'IL RISULTATO' in spaced small caps top-left. "
-        "Service name in large italic serif bottom-right. Center name italic below. Decorative dots ·",
+        "POLAROID ON COLOR: Photo as a large polaroid card (white border, thicker bottom, rotated 3-4°) "
+        "— the polaroid itself covers 75-80% of the frame. Only a thin sliver of brand background "
+        "is visible around it. 'IL RISULTATO' small caps overlaid top-left corner. "
+        "Service name in large italic serif in polaroid bottom margin. Decorative dots · on background corners.",
 
         "FULL-BLEED VIGNETTE: Photo fills nearly the entire frame with dark vignette at edges. "
         "Service name as LARGE italic serif overlay, partially transparent. Center name small bottom. "
@@ -798,9 +800,10 @@ _ARCHETYPE_INSPIRATIONS: dict = {
         "Small sparkle star accents ✦ ✧ scattered at corners. Service name SMALL CAPS "
         "in a thin header bar. Center name in footer bar. Minimal, luxury.",
 
-        "TILTED POLAROID: Single photo styled as polaroid (white border, rotated 2-3°) on brand color. "
-        "Service name handwritten-style in polaroid bottom margin. Center name below the frame. "
-        "2-3 small decorative dots on background.",
+        "TILTED POLAROID: Single photo as a large polaroid card (white border, rotated 2-3°) — "
+        "polaroid covers 75%+ of the frame, only thin brand-color corners visible. "
+        "Service name handwritten-style in polaroid bottom margin. Center name in tiny font below. "
+        "2-3 small decorative dots in the exposed background corners only.",
 
         "STORY TAG AUTHENTIC: Photo full-frame, authentic. Top: pill-shaped location tag "
         "in primary color with center name. Bottom: thin translucent strip with service name. "
@@ -1108,14 +1111,25 @@ async def generate_image(
 
         f"{composition}\n\n"
 
-        f"PHOTO DOMINANCE RULE — this is critical:\n"
-        f"The photo(s) must occupy 70-90% of the visual space. "
-        f"NEVER shrink the photo to a small element surrounded by a large block of color. "
-        f"Color and graphic elements ACCENT the photo — they frame it, overlay it subtly, or sit beside it. "
-        f"A small photo on a big colored background = failure. A large photo with small graphic details = success.\n\n"
+        f"PHOTO INTEGRITY — non-negotiable:\n"
+        f"The photos are REAL treatment results taken by the stylist — authentic, unaltered shots. "
+        f"DO NOT redraw, reinterpret, reimagine, or stylize the photo content. "
+        f"Do not change nail colors, lash shape, skin tone, eye shape, or ANY visible detail. "
+        f"Your task is COMPOSITING: add text and graphic elements ON TOP of the exact unmodified photo. "
+        f"Think Photoshop layers — the photo layer stays untouched beneath everything else.\n\n"
+
+        f"PHOTO AS CANVAS — non-negotiable:\n"
+        f"DEFAULT layout: the photo fills the ENTIRE 1:1 frame edge-to-edge. "
+        f"All text and graphic elements are overlaid on top. "
+        f"The ONLY layouts where you may reduce the photo area:\n"
+        f"  • Split panel / before-after: photo fills one full side (minimum 50% of frame)\n"
+        f"  • Polaroid frame: the polaroid card must be LARGE — at least 70% of frame width\n"
+        f"ABSOLUTELY FORBIDDEN: a small photo floating in a large solid brand-color background. "
+        f"If brand background color dominates the frame → you failed. "
+        f"Photo = the canvas; graphic elements = small accents on top.\n\n"
 
         f"ABSOLUTE RULES:\n"
-        f"- Use ONLY the photos provided — never add, generate, or imply photos not given\n"
+        f"- Use ONLY the photos provided — never generate, invent, or replace them\n"
         f"- Brand colors EXACTLY as specified — zero deviation\n"
         f"- Include these text elements: {required_texts}\n"
         f"- 1:1 square format, publication-ready\n\n"
