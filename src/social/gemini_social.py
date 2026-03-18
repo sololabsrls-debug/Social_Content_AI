@@ -1096,7 +1096,11 @@ async def generate_image(
         f"uniform surfaces, soft edges with little detail)\n\n"
         f"Place ALL text and graphic elements exclusively in the empty/neutral areas "
         f"you identified. Never place anything over the treatment result or over "
-        f"visually complex areas of the photo.\n\n"
+        f"visually complex areas of the photo.\n"
+        f"This applies to ALL graphic elements without exception: text, labels, lines, "
+        f"ornaments, shapes, gradients, blurs, vignettes, and overlays. "
+        f"None of these may obscure, blur, darken, or visually interfere with the "
+        f"treatment result — it must remain sharp, clear, and fully visible.\n\n"
 
         f"Output: 1:1 square, publication-ready."
     )
