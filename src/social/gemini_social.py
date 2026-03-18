@@ -715,132 +715,6 @@ Rispondi SOLO con JSON valido:
 # Gemini ha libertà creativa su layout, composizione, elementi grafici,
 # posizione testi. I post usciranno visivamente diversi tra loro.
 
-# ── Layout system — 4 layout approvati, scelti per archetype ────────────
-
-_LAYOUT_A = (
-    "LAYOUT A — BOTTOM GRADIENT CAPTION\n"
-    "- Photo fills the ENTIRE frame edge-to-edge — never shrink or crop it\n"
-    "- A gradient fades from fully transparent (starting at roughly 60–70% from the top) "
-    "to a solid brand color at the very bottom edge\n"
-    "- Service name sits inside the solid bottom area of the gradient, in elegant italic serif\n"
-    "- Optional: one micro-label in spaced small caps at the top-left corner of the frame\n"
-    "- One ultra-thin ornamental line where the gradient begins to become visible\n"
-    "- The gradient must start fading from a neutral/background area of the photo, never from the subject\n"
-    "- Result: the text feels anchored to the bottom of the photo, not floating — one unified image"
-)
-
-_LAYOUT_B = (
-    "LAYOUT B — TOP GRADIENT CAPTION\n"
-    "- Photo fills the ENTIRE frame edge-to-edge — never shrink or crop it\n"
-    "- A gradient fades from solid brand color at the very top edge to fully transparent "
-    "at roughly 30–35% from the top\n"
-    "- Service name and/or brand name sit in the solid top area of the gradient\n"
-    "- One ultra-thin ornamental line where the gradient dissolves into the photo\n"
-    "- The gradient must start from a neutral/background area at the top of the photo\n"
-    "- Result: photo and text feel like one cohesive editorial frame"
-)
-
-_LAYOUT_C = (
-    "LAYOUT C — VERTICAL SIDE GRADIENT\n"
-    "- Photo fills the ENTIRE frame edge-to-edge — never shrink or crop it\n"
-    "- A gradient fades from solid brand color at the left (or right) edge to fully transparent "
-    "at roughly 30–40% from that edge\n"
-    "- Service name reads vertically inside the solid part of the gradient, elegant and large\n"
-    "- The gradient must originate from a neutral/background area of the photo on that side\n"
-    "- One ultra-thin horizontal ornamental line at top or bottom ties the composition\n"
-    "- Result: the vertical text feels like a title column grown from the photo itself"
-)
-
-_LAYOUT_D = (
-    "LAYOUT D — TRANSFORMATION SPLIT (before/after only)\n"
-    "- BEFORE photo fills the left half edge-to-edge, AFTER photo fills the right half edge-to-edge\n"
-    "- Neither photo is shrunk — each occupies exactly 50% of the full frame\n"
-    "- Thin elegant divider at center: hair-thin line with ◇ symbol, spans full height\n"
-    "- 'PRIMA' label top-left, 'DOPO' label top-right, in spaced small caps — "
-    "placed over a very subtle dark gradient at those corners for legibility\n"
-    "- A narrow solid brand-color strip at the very bottom spans the full width, "
-    "service name centered inside it in thin italic serif\n"
-    "- Result: the bottom strip and divider hold both full-frame photos together as one design"
-)
-
-_ARCHETYPE_LAYOUTS: dict = {
-    "before_after": (
-        f"{_LAYOUT_D}\n\n"
-        f"Alternative if only one photo is provided: use Layout A instead.\n"
-        f"When in doubt, use LAYOUT D."
-    ),
-    "editorial": (
-        f"{_LAYOUT_A}\n\n{_LAYOUT_B}\n\n{_LAYOUT_C}\n\n"
-        f"When in doubt, use LAYOUT A."
-    ),
-    "behind_scenes": (
-        f"{_LAYOUT_A}\n\n{_LAYOUT_B}\n\n"
-        f"When in doubt, use LAYOUT A."
-    ),
-    "educational": (
-        f"{_LAYOUT_B}\n\n{_LAYOUT_C}\n\n{_LAYOUT_A}\n\n"
-        f"When in doubt, use LAYOUT B."
-    ),
-    "promo": (
-        f"{_LAYOUT_B}\n\n{_LAYOUT_C}\n\n"
-        f"When in doubt, use LAYOUT B."
-    ),
-}
-
-# Caratteristiche brand per stile visivo
-_STYLE_CHARACTERISTICS: dict = {
-    "minimal": (
-        "- Minimal luxury aesthetic\n"
-        "- Clean editorial composition\n"
-        "- Delicate feminine restraint\n"
-        "- Premium beauty campaign feel"
-    ),
-    "luxury": (
-        "- Opulent luxury aesthetic\n"
-        "- Rich refined editorial style\n"
-        "- Ornamental feminine elegance\n"
-        "- High-end premium beauty feel"
-    ),
-    "naturale": (
-        "- Natural organic aesthetic\n"
-        "- Warm authentic editorial style\n"
-        "- Soft botanical warmth\n"
-        "- Genuine beauty campaign feel"
-    ),
-    "colorato": (
-        "- Vibrant joyful aesthetic\n"
-        "- Bold colorful editorial style\n"
-        "- Warm energetic femininity\n"
-        "- Inviting beauty campaign feel"
-    ),
-    "moderno": (
-        "- Modern bold aesthetic\n"
-        "- Geometric contemporary editorial style\n"
-        "- Sharp feminine edge\n"
-        "- Cutting-edge beauty campaign feel"
-    ),
-}
-
-# Regole tipografiche per font style
-_TYPOGRAPHY_RULES: dict = {
-    "serif_elegant": (
-        "- Use an elegant serif style similar to Playfair Display\n"
-        "- Italic serif for the service name\n"
-        "- Small caps or spaced uppercase for micro-labels\n"
-        "- Never use bold, heavy, playful, trendy, handwritten, or decorative fonts"
-    ),
-    "sans_modern": (
-        "- Use a clean modern sans-serif similar to Inter or Helvetica Neue\n"
-        "- Light weight for the service name\n"
-        "- Spaced uppercase for micro-labels\n"
-        "- Never use heavy, decorative, handwritten, or playful fonts"
-    ),
-    "mixed": (
-        "- Elegant serif (Playfair Display style) for the service name\n"
-        "- Clean sans-serif for supporting micro-labels\n"
-        "- Never use bold, heavy, handwritten, or decorative fonts"
-    ),
-}
 
 
 def _get_treatment_area(service_name: str) -> str:
@@ -1123,42 +997,26 @@ async def generate_image(
         )
 
         prompt = (
-            f"Create a unified, publication-ready 1:1 Instagram post for an Italian beauty center. "
-            f"The goal is a single cohesive design where photo and brand graphics feel like ONE composed piece — "
-            f"not a photo with a badge stuck on it.\n\n"
+            f"Create a publication-ready 1:1 Instagram post for an Italian beauty center.\n\n"
 
             f"{placement_section}"
 
-            f"ABSOLUTE RULE — FULL-FRAME PHOTO: The photo must fill the entire 1:1 canvas edge-to-edge. "
-            f"Never shrink, scale down, add a border around, or letterbox the photo. "
-            f"All graphic elements (text, gradients, strips) must be layered ON TOP of the full-frame photo. "
-            f"Do not redraw, retouch, recolor, or alter the photo itself. "
-            f"The beauty treatment result must remain sharp and fully visible.\n\n"
-
             f"Brand: {center_name}\n"
             f"Service: {service_name or '(see photo)'}\n"
-            f"Privacy: {consent_instruction}\n\n"
-
-            f"Brand colors:\n"
-            f"  Primary {primary_color} · Secondary {secondary_color} · "
-            f"Accent {accent_color} · Background {bg_color}\n\n"
+            f"Privacy: {consent_instruction}\n"
+            f"Brand colors: primary {primary_color} · secondary {secondary_color} · "
+            f"accent {accent_color} · background {bg_color}\n\n"
 
             + (f"Text to include: {service_text}\n\n" if service_text else "")
             + brief_section +
 
-            f"COMPOSITIONAL UNITY — this is the core design principle:\n"
-            f"Choose a layout structure (frame, gradient strip, brand column, or split) that creates "
-            f"a visual bridge between the photo and the brand graphics. "
-            f"Techniques that create unity: a polaroid frame where text lives inside the border, "
-            f"a gradient that fades from the photo into a solid brand-colored area where text sits, "
-            f"a side column that shares the same height as the photo and feels like its title. "
-            f"The text and graphic elements must feel anchored to the composition — "
-            f"they should look like they were designed with the photo, not placed on top of it.\n\n"
+            f"You have full creative freedom on composition, typography, graphic elements, and style. "
+            f"Make it elegant, on-brand, and visually striking.\n\n"
 
-            f"HARD RULE: Never place text or opaque graphics directly over the beauty treatment result "
-            f"(the nails, lashes, skin, etc. that is the subject of the photo). "
-            f"Gradients and semi-transparent transitions are allowed at the edges of the subject "
-            f"only if they do not obscure the result.\n\n"
+            f"Two absolute rules:\n"
+            f"1. The photo fills the entire canvas edge-to-edge — never shrink, frame, or letterbox it.\n"
+            f"2. Never place text or opaque graphics over the beauty treatment result "
+            f"(the {_get_treatment_area(service_name)} must remain sharp and fully visible).\n\n"
 
             f"Output: 1:1 square, publication-ready."
         )
