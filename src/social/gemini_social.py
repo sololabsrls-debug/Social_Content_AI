@@ -264,7 +264,6 @@ Rispondi SOLO con JSON valido, senza testo prima o dopo:
       "service_name": "nome esatto del servizio",
       "archetype": "editorial",
       "content_type": "post",
-      "scheduled_day": "martedi",
       "rationale": "motivazione specifica (1 frase)",
       "material_checklist": [
         {{

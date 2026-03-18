@@ -168,8 +168,9 @@ async def run_weekly_pipeline(tenant_id: str, week_start_override: str | None = 
         appt_id = plan.get("appointment_id")
         service_id = None
 
-        # Recupera service_id e service_name dall'appuntamento
+        # Recupera service_id, service_name e data reale dall'appuntamento
         service_name_from_appt = plan.get("service_name")
+        scheduled_date = week_start  # fallback
         if appt_id:
             for a in appointments:
                 if a.get("id") == appt_id:
@@ -177,12 +178,12 @@ async def run_weekly_pipeline(tenant_id: str, week_start_override: str | None = 
                     service_id = service.get("id")
                     if not service_name_from_appt:
                         service_name_from_appt = service.get("name")
+                    # Usa la data reale dell'appuntamento, non quella inventata da Gemini
+                    appt_date_str = (a.get("start_at") or "")[:10]
+                    if appt_date_str:
+                        from datetime import date as date_type
+                        scheduled_date = date_type.fromisoformat(appt_date_str)
                     break
-
-        # Calcola data pubblicazione consigliata
-        day_name = (plan.get("scheduled_day") or "lunedi").lower()
-        day_offset = DAY_OFFSETS.get(day_name, 0)
-        scheduled_date = week_start + timedelta(days=day_offset)
 
         record = {
             "tenant_id": tenant_id,
