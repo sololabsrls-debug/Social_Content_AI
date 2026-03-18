@@ -75,170 +75,239 @@ def _extract_image_from_response(response) -> Optional[bytes]:
     return None
 
 
-# ── Knowledge base: Python decide archetype e checklist ────────────
+# ── Knowledge base V2: rotazione archetype per servizio ────────────
+#
+# Per ogni categoria di servizio:
+#   - keywords:          per il matching
+#   - rotation_weights:  target % per archetype (sum=100)
+#   - archetypes:        checklist base per ogni archetype possibile
+#
+# Il sistema di rotazione controlla gli ultimi N post per quel servizio
+# e sceglie l'archetype più "in debito" rispetto ai pesi target.
+# Gemini personalizza poi le istruzioni foto con _personalize_checklist_instructions().
 
-# Lista keyword → regole (archetype, checklist items)
-# Ogni keyword viene cercata nel nome del servizio (case-insensitive).
-# L'ordine conta: la prima regola che fa match vince.
-_SERVICE_RULES = [
-    # ── Ciglia ──
-    {
+_SERVICE_RULES_V2: dict = {
+    "ciglia": {
         "keywords": ["laminazione ciglia", "extension ciglia", "lifting ciglia", "ciglia"],
-        "archetype": "before_after",
-        "checklist": [
-            {
-                "id": "before",
-                "label": "Foto ciglia PRIMA",
-                "instructions": (
-                    "Fotografa l'occhio aperto senza mascara. "
-                    "Tieni il telefono vicino al viso con buona luce dalla finestra. "
-                    "Stesso angolo che userai per la foto DOPO."
-                ),
-                "required": True,
-            },
-            {
-                "id": "after",
-                "label": "Foto ciglia DOPO",
-                "instructions": (
-                    "Stesso angolo della foto PRIMA, subito dopo il trattamento. "
-                    "Occhi aperti, luce dalla finestra."
-                ),
-                "required": True,
-            },
-        ],
+        "rotation_weights": {"before_after": 50, "educational": 25, "behind_scenes": 15, "editorial": 10},
+        "archetypes": {
+            "before_after": [
+                {"id": "before", "label": "Foto ciglia PRIMA", "required": True, "instructions": ""},
+                {"id": "after",  "label": "Foto ciglia DOPO",  "required": True, "instructions": ""},
+            ],
+            "educational": [
+                {"id": "treatment", "label": "Foto durante il trattamento ciglia", "required": True,  "instructions": ""},
+                {"id": "tools",     "label": "Kit prodotti usati",                 "required": False, "instructions": ""},
+            ],
+            "behind_scenes": [
+                {"id": "process", "label": "Mani al lavoro sulle ciglia", "required": True, "instructions": ""},
+            ],
+            "editorial": [
+                {"id": "closeup", "label": "Close-up risultato ciglia", "required": True, "instructions": ""},
+            ],
+        },
     },
-    # ── Sopracciglia ──
-    {
-        "keywords": ["microblading", "nanoblading", "laminazione sopracciglia",
-                     "tinta sopracciglia", "sopracciglia"],
-        "archetype": "before_after",
-        "checklist": [
-            {
-                "id": "before",
-                "label": "Foto sopracciglia PRIMA",
-                "instructions": (
-                    "Fotografa le sopracciglia da davanti con il viso struccato. "
-                    "Tieni il telefono all'altezza degli occhi, buona luce dalla finestra."
-                ),
-                "required": True,
-            },
-            {
-                "id": "after",
-                "label": "Foto sopracciglia DOPO",
-                "instructions": (
-                    "Stesso angolo della foto PRIMA, subito dopo il trattamento. "
-                    "Luce dalla finestra, stessa espressione."
-                ),
-                "required": True,
-            },
-        ],
+    "sopracciglia": {
+        "keywords": ["microblading", "nanoblading", "laminazione sopracciglia", "tinta sopracciglia", "sopracciglia"],
+        "rotation_weights": {"before_after": 50, "editorial": 25, "educational": 15, "behind_scenes": 10},
+        "archetypes": {
+            "before_after": [
+                {"id": "before", "label": "Foto sopracciglia PRIMA", "required": True, "instructions": ""},
+                {"id": "after",  "label": "Foto sopracciglia DOPO",  "required": True, "instructions": ""},
+            ],
+            "editorial": [
+                {"id": "closeup", "label": "Close-up sopracciglia finali", "required": True, "instructions": ""},
+            ],
+            "educational": [
+                {"id": "treatment", "label": "Foto durante il disegno/trattamento", "required": True, "instructions": ""},
+            ],
+            "behind_scenes": [
+                {"id": "process", "label": "Mani al lavoro sulle sopracciglia", "required": True, "instructions": ""},
+            ],
+        },
     },
-    # ── Semipermanente / Smalto / Manicure / Pedicure / Nail art ──
-    {
-        "keywords": ["semipermanente", "smalto", "nail art", "ricostruzione unghie",
-                     "manicure", "pedicure", "unghie"],
-        "archetype": "editorial",
-        "checklist": [
-            {
-                "id": "result",
-                "label": "Foto risultato unghie",
-                "instructions": (
-                    "Appoggia la mano (o il piede) su un asciugamano bianco o sul lettino. "
-                    "Tieni il telefono a una spanna dall'unghia e scatta dall'alto. "
-                    "Cerca luce dalla finestra, non quella del soffitto."
-                ),
-                "required": True,
-            },
-        ],
+    "unghie": {
+        "keywords": ["semipermanente", "smalto", "nail art", "ricostruzione unghie", "manicure", "pedicure", "unghie"],
+        "rotation_weights": {"editorial": 40, "behind_scenes": 25, "educational": 20, "before_after": 15},
+        "archetypes": {
+            "editorial": [
+                {"id": "result", "label": "Foto risultato unghie", "required": True, "instructions": ""},
+            ],
+            "behind_scenes": [
+                {"id": "process", "label": "Foto durante la manicure",         "required": True,  "instructions": ""},
+                {"id": "detail",  "label": "Dettaglio strumenti o smalti usati", "required": False, "instructions": ""},
+            ],
+            "educational": [
+                {"id": "technique", "label": "Foto che mostra la tecnica", "required": True, "instructions": ""},
+            ],
+            "before_after": [
+                {"id": "before", "label": "Foto unghie PRIMA", "required": True, "instructions": ""},
+                {"id": "after",  "label": "Foto unghie DOPO",  "required": True, "instructions": ""},
+            ],
+        },
     },
-    # ── Laser / Luce pulsata ──
-    {
+    "laser": {
         "keywords": ["laser", "luce pulsata", "epilazione laser"],
-        "archetype": "educational",
-        "checklist": [
-            {
-                "id": "treatment",
-                "label": "Foto durante il trattamento",
-                "instructions": (
-                    "Fotografa il macchinario mentre viene usato sulla pelle "
-                    "(zona gambe o ascelle, non zone intime). "
-                    "Tieni il telefono a circa 30 cm di distanza, luce naturale."
-                ),
-                "required": True,
-            },
-        ],
+        "rotation_weights": {"educational": 45, "behind_scenes": 30, "editorial": 25},
+        "archetypes": {
+            "educational": [
+                {"id": "machine",   "label": "Foto del macchinario laser",           "required": True,  "instructions": ""},
+                {"id": "treatment", "label": "Trattamento in corso (zona neutrale)",  "required": False, "instructions": ""},
+            ],
+            "behind_scenes": [
+                {"id": "treatment", "label": "Foto durante il trattamento", "required": True, "instructions": ""},
+            ],
+            "editorial": [
+                {"id": "result", "label": "Foto della pelle dopo il trattamento", "required": True, "instructions": ""},
+            ],
+        },
     },
-    # ── Pulizia viso / Trattamenti viso ──
-    {
-        "keywords": ["pulizia viso", "idratazione viso", "trattamento viso",
-                     "peeling", "viso"],
-        "archetype": "before_after",
-        "checklist": [
-            {
-                "id": "before",
-                "label": "Foto viso PRIMA",
-                "instructions": (
-                    "Foto del viso in luce naturale, senza filtri o trucco. "
-                    "Tieni il telefono all'altezza del viso, sguardo neutro."
-                ),
-                "required": True,
-            },
-            {
-                "id": "after",
-                "label": "Foto viso DOPO",
-                "instructions": (
-                    "Stesso angolo della foto PRIMA, subito dopo il trattamento. "
-                    "Luce dalla finestra, viso rilassato."
-                ),
-                "required": True,
-            },
-        ],
+    "viso": {
+        "keywords": ["pulizia viso", "idratazione viso", "trattamento viso", "peeling", "viso"],
+        "rotation_weights": {"before_after": 40, "behind_scenes": 30, "educational": 20, "editorial": 10},
+        "archetypes": {
+            "before_after": [
+                {"id": "before", "label": "Foto viso PRIMA", "required": True, "instructions": ""},
+                {"id": "after",  "label": "Foto viso DOPO",  "required": True, "instructions": ""},
+            ],
+            "behind_scenes": [
+                {"id": "process", "label": "Foto durante il trattamento viso", "required": True, "instructions": ""},
+            ],
+            "educational": [
+                {"id": "product", "label": "Foto prodotti usati o step del trattamento", "required": True, "instructions": ""},
+            ],
+            "editorial": [
+                {"id": "result", "label": "Foto viso dopo il trattamento", "required": True, "instructions": ""},
+            ],
+        },
     },
-    # ── Massaggio / Corpo ──
-    {
-        "keywords": ["massaggio", "drenante", "pressoterapia", "cavitazione",
-                     "radiofrequenza", "mesoterapia"],
-        "archetype": "behind_scenes",
-        "checklist": [
-            {
-                "id": "treatment",
-                "label": "Foto durante il trattamento",
-                "instructions": (
-                    "Fotografa le mani dell'operatrice al lavoro, "
-                    "o il macchinario sulla zona trattata. "
-                    "Cerca luce calda e ambiente ordinato."
-                ),
-                "required": True,
-            },
-        ],
+    "massaggio": {
+        "keywords": ["massaggio", "drenante", "pressoterapia", "cavitazione", "radiofrequenza", "mesoterapia"],
+        "rotation_weights": {"behind_scenes": 45, "educational": 30, "editorial": 25},
+        "archetypes": {
+            "behind_scenes": [
+                {"id": "treatment", "label": "Foto durante il massaggio/trattamento", "required": True, "instructions": ""},
+            ],
+            "educational": [
+                {"id": "machine", "label": "Macchinario o mani al lavoro", "required": True, "instructions": ""},
+            ],
+            "editorial": [
+                {"id": "result", "label": "Zona trattata — risultato visibile", "required": True, "instructions": ""},
+            ],
+        },
     },
-]
+}
 
 # Fallback per servizi non riconosciuti
-_DEFAULT_RULES = {
-    "archetype": "editorial",
-    "checklist": [
-        {
-            "id": "result",
-            "label": "Foto del risultato",
-            "instructions": (
-                "Fotografa il risultato del trattamento in luce naturale. "
-                "Tieni il telefono vicino al soggetto e scatta con calma. "
-                "Cerca luce dalla finestra."
-            ),
-            "required": True,
-        }
-    ],
+_DEFAULT_RULES_V2: dict = {
+    "rotation_weights": {"editorial": 40, "educational": 30, "behind_scenes": 20, "before_after": 10},
+    "archetypes": {
+        "editorial": [
+            {"id": "result", "label": "Foto del risultato", "required": True, "instructions": ""},
+        ],
+        "educational": [
+            {"id": "treatment", "label": "Foto del trattamento", "required": True, "instructions": ""},
+        ],
+        "behind_scenes": [
+            {"id": "process", "label": "Foto durante il trattamento", "required": True, "instructions": ""},
+        ],
+        "before_after": [
+            {"id": "before", "label": "Foto PRIMA", "required": True, "instructions": ""},
+            {"id": "after",  "label": "Foto DOPO",  "required": True, "instructions": ""},
+        ],
+    },
 }
 
 
-def _get_service_rules(service_name: str) -> dict:
-    """Restituisce archetype e checklist in base al nome del servizio."""
+def _pick_archetype_by_rotation(
+    weights: dict[str, int],
+    recent_archetypes: list[str],
+) -> str:
+    """
+    Sceglie l'archetype più "in debito" rispetto ai pesi target.
+
+    - weights:           {archetype: target_percent}, somma = 100
+    - recent_archetypes: lista degli ultimi N archetypes già usati per questo servizio
+
+    Algoritmo: debt = target% - actual%. Vince il più in debito.
+    Se nessuno storico disponibile, vince il peso maggiore.
+    """
+    if not recent_archetypes:
+        return max(weights, key=lambda k: weights[k])
+
+    total = len(recent_archetypes)
+    actual_count: dict[str, int] = {a: 0 for a in weights}
+    for a in recent_archetypes:
+        if a in actual_count:
+            actual_count[a] += 1
+
+    debt = {
+        a: (weights[a] / 100) - (actual_count[a] / total)
+        for a in weights
+    }
+    return max(debt, key=lambda k: debt[k])
+
+
+async def _get_recent_archetypes_for_service(
+    tenant_id: str,
+    service_id: Optional[str],
+    limit: int = 8,
+) -> list[str]:
+    """Interroga social_content per gli ultimi archetype usati per questo servizio."""
+    if not service_id:
+        return []
+    try:
+        from src.supabase_client import get_supabase
+        sb = get_supabase()
+        res = (
+            sb.table("social_content")
+            .select("archetype")
+            .eq("tenant_id", tenant_id)
+            .eq("service_id", service_id)
+            .not_.is_("archetype", "null")
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return [row["archetype"] for row in (res.data or []) if row.get("archetype")]
+    except Exception as e:
+        logger.warning(f"Storico archetype non disponibile per service {service_id}: {e}")
+        return []
+
+
+async def _get_rules_with_rotation(
+    service_name: str,
+    service_id: Optional[str],
+    tenant_id: str,
+) -> dict:
+    """
+    Determina archetype e checklist per un servizio usando la rotazione.
+    Legge lo storico DB → sceglie l'archetype più in debito → ritorna
+    {archetype, checklist} compatibile con il resto della pipeline.
+    """
     name_lower = service_name.lower()
-    for rule in _SERVICE_RULES:
-        if any(kw in name_lower for kw in rule["keywords"]):
-            return rule
-    return _DEFAULT_RULES
+    cat: Optional[dict] = None
+    for cat_data in _SERVICE_RULES_V2.values():
+        if any(kw in name_lower for kw in cat_data["keywords"]):
+            cat = cat_data
+            break
+    if cat is None:
+        cat = _DEFAULT_RULES_V2
+
+    weights = cat["rotation_weights"]
+    archetypes_data = cat["archetypes"]
+
+    recent = await _get_recent_archetypes_for_service(tenant_id, service_id, limit=8)
+    chosen = _pick_archetype_by_rotation(weights, recent)
+
+    # Fallback se l'archetype scelto non ha checklist (non dovrebbe mai succedere)
+    if chosen not in archetypes_data:
+        chosen = next(iter(archetypes_data))
+
+    logger.debug(
+        f"Rotazione archetype → servizio='{service_name}' recenti={recent} scelto={chosen}"
+    )
+    return {"archetype": chosen, "checklist": archetypes_data[chosen]}
 
 
 # ── Brand system prompt ────────────────────────────────────────────
@@ -443,6 +512,7 @@ async def select_and_plan_week(
             "id": appt_id,
             "giorno": a.get("start_at", "")[:10],
             "servizio": service_name,
+            "service_id": service.get("id"),  # per la rotazione archetype
         })
 
     if not candidati:
@@ -455,11 +525,16 @@ async def select_and_plan_week(
     # Assembla il system prompt del brand una volta sola
     brand_system_prompt = _build_brand_system_prompt(tenant)
 
-    # Per ogni candidato: Python schema base, Gemini personalizza istruzioni + caption
+    # Per ogni candidato: rotazione archetype, Gemini personalizza istruzioni + caption
     results = []
+    tenant_id = tenant.get("id", "")
     for c in candidati:
         service_name = c["servizio"]
-        rules = _get_service_rules(service_name)
+        rules = await _get_rules_with_rotation(
+            service_name=service_name,
+            service_id=c.get("service_id"),
+            tenant_id=tenant_id,
+        )
 
         # Gemini personalizza le istruzioni foto (con fallback alle istruzioni base)
         checklist = await _personalize_checklist_instructions(
