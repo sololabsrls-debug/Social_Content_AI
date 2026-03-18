@@ -24,7 +24,7 @@ from PIL import Image
 logger = logging.getLogger("SOCIAL.gemini")
 
 MODEL_TEXT = "gemini-2.5-flash"
-MODEL_IMAGE = "gemini-3-pro-image-preview"
+MODEL_IMAGE = "gemini-3.1-flash-image-preview"
 
 _client: genai.Client | None = None
 
@@ -1068,52 +1068,93 @@ async def generate_image(
         if brief else ""
     )
 
-    prompt = (
-        f"The attached photo is LOCKED and must NOT be modified in any way. "
-        f"Do not redraw, retouch, recolor, restyle, or alter it. "
-        f"The photo stays exactly as provided — pixel perfect.\n\n"
-
-        f"Your task: add a graphic design layer on top of this photo to create a 1:1 Instagram post "
-        f"for an Italian beauty center. The photo must always fill the full frame — never shrink it.\n\n"
-
-        f"Brand: {center_name}\n"
-        f"Service: {service_name or '(see photo)'}\n"
-        f"Privacy: {consent_instruction}\n\n"
-
-        f"Brand colors to use in the graphic layer:\n"
-        f"  Primary {primary_color} · Secondary {secondary_color} · "
-        f"Accent {accent_color} · Background {bg_color}\n\n"
-
-        + (f"Text to include: {service_text}\n\n" if service_text else "")
-        + brief_section +
-
-        f"Be creative with the graphic layer — you have full freedom on style, typography, "
-        f"ornaments, and mood. Make it elegant and on-brand.\n\n"
-
-        f"Before placing any text or graphic element, look at the photo and identify:\n"
-        f"1. Where the treatment result is (the main subject — nails, lashes, skin, etc.)\n"
-        f"2. Where the naturally empty or neutral areas are (plain background, "
-        f"uniform surfaces, soft edges with little detail)\n\n"
-        f"Place ALL text and graphic elements exclusively in the empty/neutral areas "
-        f"you identified. Never place anything over the treatment result or over "
-        f"visually complex areas of the photo.\n"
-        f"This applies to ALL graphic elements without exception: text, labels, lines, "
-        f"ornaments, shapes, gradients, blurs, vignettes, and overlays. "
-        f"None of these may obscure, blur, darken, or visually interfere with the "
-        f"treatment result — it must remain sharp, clear, and fully visible.\n\n"
-
-        f"Output: 1:1 square, publication-ready."
-    )
-
     try:
         client = _get_client()
+
+        # ── STEP 1: Analisi spaziale (testo, veloce) ─────────────────────
+        # Prima di generare, chiediamo al modello di analizzare esattamente
+        # dove si trova il soggetto e dove ci sono zone vuote.
+        # Questo segue la best practice Google "step-by-step instructions"
+        # per task complessi con vincoli di posizionamento.
+        zone_analysis = ""
+        if pil_images:
+            analysis_prompt = (
+                "Analyze this beauty photo for graphic design overlay purposes.\n\n"
+                "Provide a precise spatial analysis in three parts:\n\n"
+                "1. SUBJECT AREA: Where exactly is the beauty treatment result? "
+                "(e.g., 'nails/hands fill the center-right 60% of the frame', "
+                "'lashes are in the upper-center 40%')\n\n"
+                "2. EMPTY/NEUTRAL ZONES: List each area that is plain background, "
+                "uniform surface, or open space with minimal detail. "
+                "For each zone state: position (top/bottom/left/right/corner) and "
+                "approximate percentage of the frame it occupies. "
+                "(e.g., 'upper-left corner: 15% plain light background', "
+                "'bottom strip: 10% neutral floor')\n\n"
+                "3. BEST TEXT PLACEMENT: Given the above, where exactly should text "
+                "and graphic elements go? Be specific with position names.\n\n"
+                "Be concise but spatially precise."
+            )
+            try:
+                analysis_response = await client.aio.models.generate_content(
+                    model=MODEL_TEXT,
+                    contents=[analysis_prompt] + pil_images,
+                    config=types.GenerateContentConfig(temperature=0.1),
+                )
+                zone_analysis = analysis_response.text.strip()
+                logger.debug(f"Analisi zone per content {content_record.get('id')}: {zone_analysis[:150]}...")
+            except Exception as e:
+                logger.warning(f"Analisi zone fallita, procedo senza: {e}")
+
+        # ── STEP 2: Generazione immagine con contesto spaziale esplicito ──
+        placement_section = (
+            f"PHOTO SPATIAL ANALYSIS — use this to guide element placement precisely:\n"
+            f"{zone_analysis}\n\n"
+            if zone_analysis else
+            "Carefully analyze the photo to identify empty/neutral zones before placing any graphics.\n\n"
+        )
+
+        prompt = (
+            f"The attached photo is LOCKED and must NOT be modified in any way. "
+            f"Do not redraw, retouch, recolor, restyle, or alter it. "
+            f"The photo stays exactly as provided — pixel perfect.\n\n"
+
+            f"{placement_section}"
+
+            f"Your task: add a graphic design layer on top of this photo to create a 1:1 Instagram post "
+            f"for an Italian beauty center. The photo must always fill the full frame — never shrink it.\n\n"
+
+            f"Brand: {center_name}\n"
+            f"Service: {service_name or '(see photo)'}\n"
+            f"Privacy: {consent_instruction}\n\n"
+
+            f"Brand colors to use in the graphic layer:\n"
+            f"  Primary {primary_color} · Secondary {secondary_color} · "
+            f"Accent {accent_color} · Background {bg_color}\n\n"
+
+            + (f"Text to include: {service_text}\n\n" if service_text else "")
+            + brief_section +
+
+            f"Be creative with the graphic layer — you have full freedom on style, typography, "
+            f"ornaments, and mood. Make it elegant and on-brand.\n\n"
+
+            f"CRITICAL PLACEMENT RULE: Using the spatial analysis above as your precise guide, "
+            f"place ALL text and graphic elements EXCLUSIVELY in the empty/neutral zones identified. "
+            f"Never place anything over the treatment result or over visually complex areas.\n\n"
+
+            f"Output: 1:1 square, publication-ready."
+        )
+
         contents: list = [prompt] + pil_images
 
         response = await client.aio.models.generate_content(
             model=MODEL_IMAGE,
             contents=contents,
             config=types.GenerateContentConfig(
-                response_modalities=["TEXT", "IMAGE"]
+                response_modalities=["TEXT", "IMAGE"],
+                image_config=types.ImageConfig(
+                    aspect_ratio="1:1",
+                    image_size="1K",
+                ),
             ),
         )
 
