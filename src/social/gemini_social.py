@@ -325,7 +325,7 @@ Regole:
         client = _get_client()
         contents: list = [prompt] + pil_images
 
-        response = client.models.generate_content(
+        response = await client.aio.models.generate_content(
             model=MODEL_TEXT,
             contents=contents,
             config=types.GenerateContentConfig(temperature=0.7),
@@ -438,7 +438,7 @@ async def generate_image(
         client = _get_client()
         contents: list = [prompt] + pil_images
 
-        response = client.models.generate_content(
+        response = await client.aio.models.generate_content(
             model=MODEL_IMAGE,
             contents=contents,
             config=types.GenerateContentConfig(
