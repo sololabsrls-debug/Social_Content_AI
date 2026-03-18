@@ -654,34 +654,119 @@ async def generate_visual_brief(
         except Exception as e:
             logger.warning(f"Impossibile scaricare foto {url}: {e}")
 
-    prompt = f"""Stai pianificando un contenuto social per: {center_name}
-Servizio: {service_name}
-Tipo di contenuto: {archetype}
-Stile grafico: {style} — colori brand: {primary_color} (primario), {secondary_color} (secondario)
-{f"Note estetista: {notes}" if notes else ""}
-Regola privacy: {consent_instruction}
+    sp = social_profile  # alias locale
+    accent_color = sp.get("accent_color") or secondary_color
+    bg_color = sp.get("background_color") or "#fdf5f0"
 
-Analizza le foto che ti mando e descrivi IN ITALIANO SEMPLICE cosa creerai.
-Scrivi come se stessi spiegando a un'amica cosa stai per fare, con entusiasmo.
-Rispetta lo stile e il tono del brand descritto nel system instruction.
+    photo_style_desc = {
+        "bright_natural": "luminosa e naturale, luce calda dalla finestra, colori vivaci",
+        "warm_moody":     "calda e atmosferica, toni ambrati, ombre morbide",
+        "clean_white":    "pulita e professionale, sfondo bianco, luce piatta",
+        "dark_luxury":    "scura e lussuosa, contrasti forti, atmosfera premium",
+    }.get(sp.get("photo_style") or "bright_natural", "luminosa e naturale")
 
-Struttura la risposta ESATTAMENTE così (usa le emoji come titoli):
+    typo_desc = {
+        "serif_elegant": "font serif elegante (stile Playfair Display)",
+        "sans_modern":   "font sans-serif moderno e pulito",
+        "mixed":         "titolo in serif, testo corpo in sans-serif",
+    }.get(sp.get("typography_style") or "serif_elegant", "font serif elegante")
 
+    # Struttura specifica per archetype — guida Gemini su cosa descrivere
+    archetype_structure = {
+        "before_after": """\
 📐 LAYOUT
-(Come sistemerai le foto — es. "Metterò la tua foto al centro...")
+(Descrivi come metterò le foto PRIMA e DOPO affiancate e il divisore centrale)
 
 🎨 STILE
-(Colori, sfondo, effetti — coerenti col brand)
+(Colori esatti usati, trattamento delle foto, sfondo — basati sulla palette brand)
 
 ✍️ TESTO
-(Cosa scriverai sopra — coerente col tono del brand)
+(Label PRIMA/DOPO, nome servizio, nome centro — dove e con che font)
 
 ✨ EFFETTO FINALE
-(Come apparirà il post finito)
+(Come apparirà la trasformazione? Cosa colpirà chi scorre il feed?)""",
+
+        "editorial": """\
+📐 LAYOUT
+(Come posizionerò la foto rispetto allo sfondo e al testo)
+
+🎨 STILE
+(Sfondo, colori, trattamento della foto — deve essere coerente col brand)
+
+✍️ TESTO
+(Titolo del servizio, eventuale claim, nome centro — dove e come)
+
+✨ EFFETTO FINALE
+(Che sensazione trasmetterà? Aspirazionale, curato, autentico?)""",
+
+        "educational": """\
+📐 LAYOUT
+(Come dividerò foto e area testo informativo — proporzioni)
+
+🎨 STILE
+(Colori del pannello testo, sfondo, icone o elementi grafici)
+
+✍️ TESTO
+(Cosa scriverò nei punti chiave? Titolo + 3-4 benefit del servizio)
+
+✨ EFFETTO FINALE
+(Sarà chiaro e utile? Si legge in 3 secondi?)""",
+
+        "behind_scenes": """\
+📐 LAYOUT
+(La foto è protagonista — come la valorizzerò senza sovraccarica di testo)
+
+🎨 STILE
+(Overlay di colore, calore dell'immagine, atmosfera — autentica non patinata)
+
+✍️ TESTO
+(Solo l'essenziale: nome servizio e nome centro, dove)
+
+✨ EFFETTO FINALE
+(Trasmette cura, professionalità e un tocco umano?)""",
+
+        "promo": """\
+📐 LAYOUT
+(Foto + area testo promo — come bilancerò i due elementi)
+
+🎨 STILE
+(Colori bold, elementi che catturano l'attenzione nel feed)
+
+✍️ TESTO
+(Nome servizio, CTA "Prenota ora", nome centro — testo diretto e concreto)
+
+✨ EFFETTO FINALE
+(È abbastanza d'impatto da fermare lo scroll?)""",
+    }
+
+    structure = archetype_structure.get(archetype, archetype_structure["editorial"])
+
+    prompt = f"""Stai pianificando un post {archetype} per: {center_name}
+Servizio: {service_name}
+{f"Note dell'estetista: {notes}" if notes else ""}
+Regola privacy: {consent_instruction}
+
+PALETTE BRAND COMPLETA (usa questi colori, non inventarne altri):
+- Primario: {primary_color}
+- Secondario: {secondary_color}
+- Accento: {accent_color}
+- Sfondo: {bg_color}
+
+STILE FOTO: {photo_style_desc}
+TIPOGRAFIA: {typo_desc}
+
+Analizza le foto che ti mando e descrivi IN ITALIANO SEMPLICE cosa creerai.
+Scrivi come se stessi spiegando a un'amica esperta cosa stai per fare.
+Rispetta RIGOROSAMENTE lo stile, il tono e la personalità del brand nel system instruction.
+
+Struttura la risposta ESATTAMENTE così:
+
+{structure}
 
 Regole:
-- Italiano semplice, NO termini tecnici
-- Max 120 parole totali
+- Italiano semplice, ZERO termini tecnici (niente "overlay", "compositing", "mockup")
+- Max 130 parole totali
+- I colori che citi devono corrispondere ESATTAMENTE alla palette sopra
 - Usa SOLO le foto fornite, non inventare elementi non presenti"""
 
     try:
@@ -741,32 +826,106 @@ async def generate_image(
         except Exception as e:
             logger.warning(f"Impossibile scaricare foto {url}: {e}")
 
-    archetype_fallback = {
-        "before_after": "Split composition BEFORE (left) / AFTER (right). Labels 'PRIMA'/'DOPO' in serif font. Rose gold divider.",
-        "editorial": "Elegant editorial post. Photo centered on champagne background. Service name as serif title.",
-        "educational": "Informational post. Photo left 60%, text with key benefits right 40%.",
-        "behind_scenes": "Warm behind-the-scenes. Natural feel, golden overlay, simple branded text.",
-        "promo": "Promotional post. Bold composition. 'Prenota ora' call-to-action.",
+    sp = social_profile  # alias locale
+    visual_style = sp.get("visual_style") or sp.get("style") or "minimal"
+    photo_style = sp.get("photo_style") or "bright_natural"
+    typo_style = sp.get("typography_style") or "serif_elegant"
+    accent_color = sp.get("accent_color") or secondary_color
+    bg_color = sp.get("background_color") or "#fdf5f0"
+
+    photo_treatment = {
+        "bright_natural": "bright, natural lighting — warm window light feel, vivid and clean colors",
+        "warm_moody":     "warm moody treatment — amber tones, soft shadows, intimate and cozy feel",
+        "clean_white":    "clean clinical look — flat even lighting, neutral white balance, ultra clean",
+        "dark_luxury":    "dark luxury feel — deep rich tones, strong contrasts, premium and dramatic",
+    }.get(photo_style, "bright, natural lighting")
+
+    font_style = {
+        "serif_elegant": "elegant serif font (Playfair Display or similar)",
+        "sans_modern":   "modern clean sans-serif (Inter or Helvetica)",
+        "mixed":         "serif for titles, sans-serif for supporting text",
+    }.get(typo_style, "elegant serif font")
+
+    style_feel = {
+        "minimal":   "minimal, clean and restrained — lots of breathing space, nothing unnecessary",
+        "luxury":    "opulent luxury — rich textures, refined details, premium editorial feel",
+        "naturale":  "natural and organic — earthy palette, soft edges, botanical warmth",
+        "colorato":  "vibrant and joyful — bold colors, energetic, warm and inviting",
+        "moderno":   "modern and bold — geometric elements, strong type, contemporary edge",
+    }.get(visual_style.lower().split()[0] if visual_style else "minimal",
+          "clean and professional")
+
+    # Composizione dinamica per archetype — usa tutti i dati brand
+    archetype_composition = {
+        "before_after": (
+            f"LAYOUT: Classic split — BEFORE photo left half, AFTER photo right half, 1:1 square.\n"
+            f"DIVIDER: Thin vertical line in {accent_color} at center, optionally a small arrow or sparkle icon.\n"
+            f"LABELS: 'PRIMA' top-left, 'DOPO' top-right — {font_style}, white or {primary_color}.\n"
+            f"PHOTO TREATMENT: Apply {photo_treatment} to both photos consistently.\n"
+            f"BRANDING: Bottom bar in {primary_color}, '{center_name}' in white {font_style}.\n"
+            f"BACKGROUND: {bg_color} for any padding.\n"
+            f"FEEL: {style_feel}."
+        ),
+        "editorial": (
+            f"LAYOUT: Editorial beauty — photo takes 65-70% of the frame, centered or slightly off-center.\n"
+            f"BACKGROUND: {bg_color}, clean and minimal around the photo.\n"
+            f"TYPOGRAPHY: Service name '{service_name}' as main title in {font_style}, color {primary_color}.\n"
+            f"ACCENT: Optional thin decorative line or small element in {accent_color}.\n"
+            f"PHOTO TREATMENT: {photo_treatment}.\n"
+            f"BRANDING: '{center_name}' subtle bottom placement, {font_style}, {primary_color}.\n"
+            f"FEEL: {style_feel} — aspirational, not commercial."
+        ),
+        "educational": (
+            f"LAYOUT: Split info post — photo on the left 55%, text panel on the right 45%.\n"
+            f"TEXT PANEL: Background {bg_color} or {secondary_color}. Title in {font_style}, {primary_color}.\n"
+            f"CONTENT: 3-4 short benefit points about '{service_name}', each with a small icon or bullet in {accent_color}.\n"
+            f"PHOTO TREATMENT: {photo_treatment}.\n"
+            f"BRANDING: Bottom bar in {primary_color}, '{center_name}' in white.\n"
+            f"FEEL: Clear, readable, informative — readable at a glance on mobile."
+        ),
+        "behind_scenes": (
+            f"LAYOUT: Photo-first — photo nearly full frame, text minimal and unobtrusive.\n"
+            f"OVERLAY: Very subtle warm color wash using {secondary_color} at low opacity to maintain authenticity.\n"
+            f"PHOTO TREATMENT: {photo_treatment} — keep it real, not over-processed.\n"
+            f"TEXT: Only '{service_name}' and '{center_name}' — small, placed at bottom or top corner.\n"
+            f"FONT: {font_style}, white or {bg_color} for readability.\n"
+            f"FEEL: {style_feel} — warm, human, genuine. Not polished, purposely candid."
+        ),
+        "promo": (
+            f"LAYOUT: Bold promotional — photo 50%, strong graphic text area 50%.\n"
+            f"TEXT AREA: Background {primary_color}. Service name big and clear, CTA 'Prenota ora' prominent.\n"
+            f"ACCENT elements: Use {accent_color} for CTA button border or underline.\n"
+            f"PHOTO TREATMENT: {photo_treatment} — bright and eye-catching.\n"
+            f"BRANDING: '{center_name}' clearly visible, {font_style}.\n"
+            f"FEEL: {style_feel} — must stop the scroll, energetic and direct."
+        ),
     }
 
     if brief:
-        composition = f"VISUAL PLAN — follow this exactly (user approved):\n{brief}"
+        composition = f"VISUAL PLAN — the user approved this plan, follow it precisely:\n{brief}"
     else:
-        composition = f"COMPOSITION:\n{archetype_fallback.get(archetype, archetype_fallback['editorial'])}"
+        composition = (
+            f"COMPOSITION GUIDELINES (no approved brief — use brand defaults):\n"
+            f"{archetype_composition.get(archetype, archetype_composition['editorial'])}"
+        )
 
     prompt = (
-        f"You are a luxury beauty brand graphic designer for an Italian aesthetic center.\n\n"
+        f"You are a professional graphic designer creating an Instagram post for an Italian beauty center.\n\n"
         f"CENTER: {center_name}\n"
         f"SERVICE: {service_name}\n"
-        f"STYLE: {style} — luxury, elegant, feminine\n"
-        f"BRAND COLORS: primary {primary_color}, secondary {secondary_color}, background champagne #fdf5f0\n"
-        f"PRIVACY: {consent_instruction}\n\n"
+        f"BRAND COLORS: {primary_color} (primary) · {secondary_color} (secondary) · "
+        f"{accent_color} (accent) · {bg_color} (background)\n"
+        f"VISUAL STYLE: {style_feel}\n"
+        f"TYPOGRAPHY: {font_style}\n"
+        f"PRIVACY RULE: {consent_instruction}\n\n"
         f"{composition}\n\n"
-        f"BRANDING: Add '{center_name}' in a bottom bar using color {primary_color}, white serif text.\n"
-        f"FORMAT: Instagram-ready 1:1 square. Style: Charlotte Tilbury / Dior Beauty luxury.\n\n"
-        f"CRITICAL: Use ONLY the photos provided. Do NOT invent or add photos not given to you. "
-        f"If only one photo is provided, create a single-photo composition.\n\n"
-        f"Create a stunning professional social media post."
+        f"FORMAT: Instagram-ready 1:1 square (1080×1080px equivalent).\n\n"
+        f"CRITICAL RULES:\n"
+        f"- Use ONLY the photos provided. Do NOT invent or add photos not given to you.\n"
+        f"- If only one photo is given, create a single-photo composition.\n"
+        f"- Brand colors must match EXACTLY — do not substitute or invent colors.\n"
+        f"- The result must look professional enough to publish immediately.\n\n"
+        f"Create the image now."
     )
 
     try:
