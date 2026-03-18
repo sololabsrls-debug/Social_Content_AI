@@ -704,20 +704,16 @@ Rispondi SOLO con JSON valido:
 
 # Vocabolario grafico condiviso — elementi decorativi che Gemini può usare
 _GRAPHIC_VOCABULARY = """
-GRAPHIC VOCABULARY — specific elements you can freely use:
-• Ornamental dividers: thin horizontal lines with diamond/rhombus symbols at center or ends
-  (example: ─────◇───── or ❖──────❖)
-• Sparkle/star accents: small scattered star shapes for luxury feel (✦ ✧ ✶ ✸)
-• Monogram circle: brand initials inside a thin circle, placed in a corner
-• Polaroid frame: photo with white border (thicker at bottom), optionally rotated 2-4°
-• Vignette: dark or colored gradient fading inward from edges — gives depth to full-bleed photos
-• Color swatch: filled circle showing the service's key color (great for nail colors, dyes)
-• Illustrated icon: a drawn/illustrated beauty element (eye, lash, nail, leaf) as graphic accent
-• Decorative corner elements: small ornamental flourishes in corners
-• Typography as graphic: service name very large, partially cropped, used as a background texture
-• Scrollwork/flourish: thin decorative line patterns in header or footer areas
+GRAPHIC VOCABULARY — use sparingly, maximum 1-2 elements total:
+• Thin ornamental line: a single hair-thin horizontal line (─────◇─────) in header or footer
+• Vignette: very subtle dark gradient fading from edges — enhances depth without adding clutter
+• Polaroid frame: white border (thicker at bottom), gives a clean framed feel
+• Color swatch: small filled circle showing nail/dye color — only when relevant
+• Illustrated icon: a minimal line-drawn beauty element in one corner only
+• Translucent strip: semi-transparent bar (dark or brand color) at top or bottom edge for text
 
-USE THESE DELIBERATELY — not all at once, but pick 1-2 that fit the concept.
+LESS IS MORE — one element done with precision is better than three fighting for attention.
+Empty space is not a problem. Restraint is sophistication.
 """
 
 # Concetti visivi per archetype — specifici e distinti, non generici
@@ -1093,7 +1089,7 @@ async def generate_image(
 
     prompt = (
         f"You are a creative director at a top Italian beauty brand agency. "
-        f"Create an Instagram post with a distinctive visual concept — not a generic template.\n\n"
+        f"Create a clean, elegant Instagram post — refined and delicate, never cluttered.\n\n"
 
         f"BRAND: {center_name}\n"
         f"SERVICE: {service_name or '(see photos)'}\n"
@@ -1125,6 +1121,19 @@ async def generate_image(
         f"ABSOLUTELY FORBIDDEN: a small photo floating in a large solid brand-color background. "
         f"If brand background color dominates the frame → you failed. "
         f"Photo = the canvas; graphic elements = small accents on top.\n\n"
+
+        f"TREATMENT VISIBILITY — non-negotiable:\n"
+        f"The treatment result (nails, lashes, brows, skin) is the main subject — it must be "
+        f"100% visible and unobstructed. NEVER place text, labels, or graphic elements over "
+        f"the treatment area. Place text only in: thin strips at the very top or bottom edge, "
+        f"empty corners of the photo, or on a narrow translucent bar that sits outside the subject.\n\n"
+
+        f"DESIGN PRINCIPLE — clean and delicate:\n"
+        f"Use maximum 1-2 graphic elements. Prefer thin lines over thick borders. "
+        f"Prefer light, delicate overlays over solid color blocks. "
+        f"Prefer generous empty space over decorative clutter. "
+        f"Typography should be small and refined, not dominant. "
+        f"The photo tells the story — design only whispers context.\n\n"
 
         f"ABSOLUTE RULES:\n"
         f"- Use ONLY the photos provided — never generate, invent, or replace them\n"
