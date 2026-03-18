@@ -32,7 +32,8 @@ async def get_tenant(x_api_key: str = Header(..., alias="X-API-Key")) -> dict:
 # ── Modelli request ────────────────────────────────────────────────
 
 class GenerateWeekRequest(BaseModel):
-    week_start: Optional[str] = None  # ISO date, default = prossima settimana
+    week_start: Optional[str] = None  # ISO date YYYY-MM-DD, default = prossima settimana
+    tenant_id: Optional[str] = None   # ignorato (arriva dall'API key), accettato per compat
 
 
 class UpdateContentRequest(BaseModel):
@@ -77,7 +78,7 @@ async def generate_week(
     from src.social.content_pipeline import run_weekly_pipeline
 
     async def _run():
-        await run_weekly_pipeline(tenant["id"])
+        await run_weekly_pipeline(tenant["id"], week_start_override=req.week_start)
 
     background_tasks.add_task(_run)
     return {"message": "Generazione piano avviata", "tenant_id": tenant["id"]}

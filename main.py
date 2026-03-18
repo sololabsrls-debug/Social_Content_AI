@@ -49,8 +49,7 @@ app = FastAPI(
 # CORS — permette chiamate da Lovable
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # restringi in produzione al dominio Lovable
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

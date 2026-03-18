@@ -96,10 +96,10 @@ def _save_images_to_storage(
 
 # ── 1. Pipeline settimanale ────────────────────────────────────────
 
-async def run_weekly_pipeline(tenant_id: str) -> dict:
+async def run_weekly_pipeline(tenant_id: str, week_start_override: str | None = None) -> dict:
     """
     Pipeline completa per un tenant:
-    1. Calcola settimana prossima
+    1. Calcola settimana (usa week_start_override se fornito, altrimenti prossima settimana)
     2. Controlla idempotenza (non rigenera se già pianificato)
     3. Legge appuntamenti
     4. Gemini seleziona e crea piano con istruzioni
@@ -107,7 +107,13 @@ async def run_weekly_pipeline(tenant_id: str) -> dict:
 
     Ritorna summary.
     """
-    week_start, week_end = _next_week_bounds()
+    if week_start_override:
+        # Usa la settimana specificata dal frontend
+        from datetime import date as date_type
+        week_start = date_type.fromisoformat(week_start_override)
+        week_end = week_start + timedelta(days=6)
+    else:
+        week_start, week_end = _next_week_bounds()
 
     # Idempotenza: se esiste già contenuto per questa settimana, salta
     existing = get_existing_week_content(tenant_id, week_start)
@@ -162,12 +168,15 @@ async def run_weekly_pipeline(tenant_id: str) -> dict:
         appt_id = plan.get("appointment_id")
         service_id = None
 
-        # Recupera service_id dall'appuntamento
+        # Recupera service_id e service_name dall'appuntamento
+        service_name_from_appt = plan.get("service_name")
         if appt_id:
             for a in appointments:
                 if a.get("id") == appt_id:
                     service = a.get("service") or {}
                     service_id = service.get("id")
+                    if not service_name_from_appt:
+                        service_name_from_appt = service.get("name")
                     break
 
         # Calcola data pubblicazione consigliata
