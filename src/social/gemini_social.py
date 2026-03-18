@@ -8,7 +8,6 @@ Tre funzioni principali:
 3. generate_image()         → genera la grafica finale con gemini-3-pro-image-preview
 """
 
-import hashlib
 import io
 import json
 import logging
@@ -693,247 +692,107 @@ Rispondi SOLO con JSON valido:
         return f"Scopri il trattamento {service_name}! Prenota ora → link in bio", []
 
 
-# ── Layout variants + graphic elements per immagine ───────────────
+# ── Creative briefs per archetype ─────────────────────────────────
 #
-# Ogni archetype ha 3 template di layout diversi.
-# La selezione è deterministica: hash(content_id) % 3.
-# Le variabili {primary}, {accent}, {bg}, {font}, {photo_treat},
-# {center}, {service}, {feel}, {graphic} vengono sostituite a runtime.
+# Invece di template fissi da seguire, Gemini riceve:
+#   1. Un OBIETTIVO creativo per l'archetype (cosa deve comunicare)
+#   2. ISPIRAZIONE con possibili approcci (non istruzioni rigide)
+#   3. VINCOLI di brand (colori, font, privacy) — questi sì rigidi
+#
+# Gemini ha libertà creativa su layout, composizione, elementi grafici,
+# posizione testi. I post usciranno visivamente diversi tra loro.
 
-_LAYOUT_VARIANTS: dict = {
+# Obiettivo creativo per archetype — cosa deve comunicare il post
+_ARCHETYPE_CREATIVE_GOALS: dict = {
+    "before_after": (
+        "Show the dramatic transformation this service creates. "
+        "The viewer must grasp the before/after contrast instantly. "
+        "Make the difference unmissable — this is the strongest social proof format."
+    ),
+    "editorial": (
+        "Create an aspirational, magazine-quality beauty image. "
+        "Elegant, curated, desirable. The kind of post someone saves and shares. "
+        "The result is the hero — let it speak with minimal clutter."
+    ),
+    "educational": (
+        "Design a clear, warm infographic that explains the service's main benefits. "
+        "Readable on a phone in 3 seconds. Informative but inviting — not clinical. "
+        "Make someone think 'I didn't know that, I should book this.'"
+    ),
+    "behind_scenes": (
+        "Capture an authentic human moment of the beauty work in progress. "
+        "Raw, real, trustworthy. Minimal design — the photo is the hero, not the graphics. "
+        "Should feel like a genuine peek behind the curtain, not a staged shot."
+    ),
+    "promo": (
+        "Create a high-impact post that makes someone stop scrolling and book. "
+        "Bold, direct, clear CTA. Confident and warm — not pushy or cheap-looking."
+    ),
+}
+
+# Ispirazione per composizione — Gemini può scegliere, adattare, combinare o inventare
+_ARCHETYPE_INSPIRATIONS: dict = {
     "before_after": [
-        {
-            "name": "classic_split",
-            "description": (
-                "LAYOUT: Perfect 50/50 vertical split. BEFORE photo on the left half, AFTER photo on the right half.\n"
-                "DIVIDER: Hairline vertical line in {accent} at center, with a subtle arrow or chevron icon pointing right.\n"
-                "LABELS: 'PRIMA' anchored top-left, 'DOPO' anchored top-right — {font}, white, small caps style.\n"
-                "PHOTO TREATMENT: Apply {photo_treat} to both photos consistently so they match in mood.\n"
-                "BRANDING: Bottom strip in {primary}, '{center}' centered in white {font}.\n"
-                "BACKGROUND: {bg} for any padding.\n"
-                "{graphic}"
-            ),
-        },
-        {
-            "name": "diagonal_drama",
-            "description": (
-                "LAYOUT: A bold diagonal line at ~40° divides the image. BEFORE photo fills the lower-left triangle, "
-                "AFTER fills the upper-right triangle.\n"
-                "DIVIDER: The diagonal edge is a clean line in {accent}, optionally with a thin shadow.\n"
-                "LABELS: 'PRIMA' bottom-left, 'DOPO' top-right — {font}, white, tucked near the edges.\n"
-                "PHOTO TREATMENT: {photo_treat}. Both photos must match in color temperature.\n"
-                "BRANDING: '{center}' placed along the diagonal line, small, in {accent}.\n"
-                "BACKGROUND: {bg} if any corner shows.\n"
-                "{graphic}"
-            ),
-        },
-        {
-            "name": "inset_polaroid",
-            "description": (
-                "LAYOUT: AFTER photo fills the full frame (nearly full bleed). "
-                "BEFORE photo overlaid as a smaller inset in the bottom-left corner — styled as a polaroid "
-                "(white border, slight drop shadow), labeled 'PRIMA' in small {font}.\n"
-                "LABEL 'DOPO' placed top-right, white, {font}.\n"
-                "PHOTO TREATMENT: {photo_treat}. The inset polaroid can be slightly warmer/desaturated to emphasize contrast.\n"
-                "BRANDING: Semi-transparent strip at the very bottom, '{center}' in white on {primary}.\n"
-                "{graphic}"
-            ),
-        },
+        "Classic 50/50 vertical split with a clean dividing line",
+        "Diagonal composition — BEFORE fills one triangle, AFTER the other",
+        "AFTER full-frame with BEFORE as a smaller polaroid inset in one corner",
+        "Triptych: BEFORE | a detail/treatment step | AFTER in three panels",
+        "BEFORE fades into AFTER using a horizontal reveal/wipe effect",
     ],
     "editorial": [
-        {
-            "name": "centered_hero",
-            "description": (
-                "LAYOUT: Photo centered and dominant — fills ~70% of the frame, sharp and clean, vertically centered.\n"
-                "BACKGROUND: {bg} as the surrounding canvas.\n"
-                "TYPOGRAPHY: '{service}' as the main title below the photo — {font}, {primary}, generous letter spacing.\n"
-                "ACCENT: A thin decorative line in {accent} between the photo and the title.\n"
-                "PHOTO TREATMENT: {photo_treat}.\n"
-                "BRANDING: '{center}' at the very bottom, small, {font}, {primary}.\n"
-                "{graphic}"
-            ),
-        },
-        {
-            "name": "asymmetric_offset",
-            "description": (
-                "LAYOUT: Photo pushed to the right (60-65% width), slightly cropped on the right edge.\n"
-                "LEFT COLUMN: Clean {bg} strip. '{service}' as a large vertical title in {font}, {primary} — "
-                "impactful, reads top to bottom.\n"
-                "SEPARATOR: Thin {accent} line between the left column and the photo.\n"
-                "PHOTO TREATMENT: {photo_treat}.\n"
-                "BRANDING: '{center}' at the bottom of the left column, small.\n"
-                "{graphic}"
-            ),
-        },
-        {
-            "name": "magazine_overlay",
-            "description": (
-                "LAYOUT: Photo fills the full frame. A gradient overlay fades from fully transparent at top "
-                "to {primary} at 60% opacity covering the bottom third.\n"
-                "TYPOGRAPHY: '{service}' in large {font}, white or {bg}, sits on the gradient area.\n"
-                "ACCENT: Small decorative element in {accent} — a thin horizontal line or tiny icon — above the title.\n"
-                "PHOTO TREATMENT: {photo_treat}.\n"
-                "BRANDING: '{center}' very small, white, bottom edge.\n"
-                "{graphic}"
-            ),
-        },
+        "Photo centered dominant, elegant title below on brand background",
+        "Asymmetric: photo right side, large typographic title in left column",
+        "Full-bleed photo with color gradient overlay and text at bottom",
+        "Photo with a decorative color frame or border in brand accent color",
+        "Photo slightly cropped/zoomed, generous negative space filled with brand color",
+        "Close-up detail shot with service name as large background watermark text",
     ],
     "educational": [
-        {
-            "name": "info_panel_right",
-            "description": (
-                "LAYOUT: Photo occupies left 55% with {photo_treat} applied. "
-                "Right 45%: clean info panel in {bg} or a very light tint of {secondary}.\n"
-                "PANEL CONTENT: Bold title '{service}' in {font}, {primary}. "
-                "Below: 3-4 short benefit bullet points, each preceded by a small icon or dot in {accent}. Text in {font}.\n"
-                "BRANDING: '{center}' at the bottom of the panel, small, {primary}.\n"
-                "{graphic}"
-            ),
-        },
-        {
-            "name": "top_photo_grid",
-            "description": (
-                "LAYOUT: Photo spans the full width in the upper 42% — {photo_treat} applied. "
-                "Lower 58%: {bg} background.\n"
-                "TYPOGRAPHY: '{service}' as large centered title below the photo, {font}, {primary}.\n"
-                "GRID: 2×2 grid of short benefit cards below the title — each card has a small {accent} icon "
-                "and 1 line of text. Clean and scannable.\n"
-                "BRANDING: '{center}' at the very bottom, small.\n"
-                "{graphic}"
-            ),
-        },
-        {
-            "name": "numbered_infographic",
-            "description": (
-                "LAYOUT: Large bold number '01' or a service icon in {accent} anchors the top-left corner — "
-                "big and graphic, acts as a visual hook.\n"
-                "Photo fills the right 50% with {photo_treat}.\n"
-                "Left side: '{service}' as title in {font}, {primary}. "
-                "Below: 3 numbered facts or benefits in smaller {font}.\n"
-                "BACKGROUND: {bg}. BRANDING: '{center}' bottom-left, small.\n"
-                "{graphic}"
-            ),
-        },
+        "Photo left, clean info panel right with 3-4 benefit bullet points",
+        "Photo top, title + benefit grid (2×2 or 3 columns) below",
+        "Large bold number or icon as graphic anchor, photo and facts alongside",
+        "Step-by-step horizontal strip: icon — text — icon — text",
+        "Circular photo inset in a graphic layout with text surrounding it",
     ],
     "behind_scenes": [
-        {
-            "name": "authentic_fullbleed",
-            "description": (
-                "LAYOUT: Photo nearly full-frame — raw, authentic, not over-composed.\n"
-                "OVERLAY: Very subtle warm color wash using {secondary} at 15-20% opacity over the photo. Nothing more.\n"
-                "PHOTO TREATMENT: {photo_treat} — keep it real, do not over-process.\n"
-                "TEXT: Only '{service}' and '{center}' — small, placed in the bottom corner, "
-                "{font}, white or {bg}. That's it. No other elements.\n"
-                "{graphic}"
-            ),
-        },
-        {
-            "name": "film_polaroid",
-            "description": (
-                "LAYOUT: Photo styled as an instant film print — white border: ~5% sides, ~14% bottom edge.\n"
-                "{bg} background visible around the polaroid. Photo slightly rotated 2-3° for organic feel.\n"
-                "PHOTO TREATMENT: {photo_treat}, slightly muted saturation for film feel.\n"
-                "TEXT: '{service}' written in the white bottom margin of the polaroid, {font}, {primary}.\n"
-                "BRANDING: '{center}' in small {font} below the polaroid frame, on the {bg} background.\n"
-                "{graphic}"
-            ),
-        },
-        {
-            "name": "story_tag",
-            "description": (
-                "LAYOUT: Photo fills 80% of the frame — authentic moment, {photo_treat}.\n"
-                "TOP OVERLAY: A pill-shaped location tag in {primary} with '{center}' and a pin icon — "
-                "like an Instagram location sticker.\n"
-                "BOTTOM OVERLAY: Translucent strip in {bg} at 75% opacity, '{service}' in {font}, {primary}.\n"
-                "Minimal. Feels real, not designed.\n"
-                "{graphic}"
-            ),
-        },
+        "Nearly full-bleed photo, only service name and center name in a corner",
+        "Polaroid frame with white border and slight tilt — raw and organic",
+        "Instagram story-style with a location tag pill overlay at top",
+        "Two candid moments side by side as a diptych",
+        "Photo with a subtle warm color wash and handwritten-style caption",
     ],
     "promo": [
-        {
-            "name": "bold_split",
-            "description": (
-                "LAYOUT: Strong 50/50 vertical split. Left: photo with {photo_treat}. "
-                "Right: solid {primary} block.\n"
-                "RIGHT BLOCK: '{service}' in large bold {font}, white. "
-                "CTA 'Prenota ora' with {accent} underline or small {accent} button border. "
-                "'{center}' small, white, at the bottom.\n"
-                "FEEL: {feel} — energetic and direct.\n"
-                "{graphic}"
-            ),
-        },
-        {
-            "name": "centered_announcement",
-            "description": (
-                "LAYOUT: Photo fills the full frame with {photo_treat}. "
-                "A semi-transparent {bg} rectangle (80% opacity) overlaid in the center of the image.\n"
-                "INSIDE THE BOX: '{service}' in large {font}, {primary}. "
-                "Thin {accent} line below. Then 'Prenota ora' in {font}, {accent}.\n"
-                "BRANDING: '{center}' small, below the box or at bottom edge.\n"
-                "{graphic}"
-            ),
-        },
-        {
-            "name": "bottom_bar_cta",
-            "description": (
-                "LAYOUT: Photo fills the top 62% of the frame with {photo_treat}. "
-                "Bottom 38%: bold {primary} bar — no photo, all brand.\n"
-                "BAR CONTENT: '{service}' in large {font}, white, top of the bar. "
-                "'Prenota ora →' in {accent}, smaller, below. '{center}' very small at the very bottom, white.\n"
-                "FEEL: {feel} — stops the scroll.\n"
-                "{graphic}"
-            ),
-        },
+        "50/50 split: photo left, bold brand-color block right with service + CTA",
+        "Photo fills the frame, centered semi-transparent text box overlay",
+        "Photo top 60%, bold brand-color bottom bar with service name + 'Prenota ora'",
+        "Full-bleed photo with large bold text in brand color over a partial overlay",
+        "Circular photo in center, graphic shapes surrounding it, CTA prominent",
     ],
 }
 
-# Elementi grafici decorativi per stile visivo — sostituiscono {graphic} nel layout
-_STYLE_GRAPHIC_ELEMENTS: dict = {
+# Direzione degli elementi grafici per stile visivo del brand
+_STYLE_GRAPHIC_DIRECTION: dict = {
     "minimal": (
-        "GRAPHIC ELEMENTS: Extreme restraint — thin lines only (1px), generous whitespace. "
-        "No decorative shapes, no patterns. Let the photo and typography breathe."
+        "GRAPHIC STYLE: Extreme restraint — generous whitespace, thin lines only. "
+        "No decorative shapes. Let the photo and typography breathe. Less is always more."
     ),
     "luxury": (
-        "GRAPHIC ELEMENTS: Refined luxury — thin hairline decorative lines in {accent} (0.5-1px weight), "
-        "optional subtle texture hint (linen or marble) in background corners at very low opacity (5-8%). "
-        "Typography with wide tracking (+5-8%). Nothing garish."
+        "GRAPHIC STYLE: Refined luxury — optional hairline decorative lines in the accent color, "
+        "wide letter-spacing on typography. Subtle, never garish. Think Vogue, not QVC."
     ),
     "naturale": (
-        "GRAPHIC ELEMENTS: Organic warmth — a soft botanical brushstroke element in a background corner "
-        "(watercolor-style, 15-20% opacity, in a muted {secondary} tone). "
-        "Edges soft, palette warm. Feels handmade, not corporate."
+        "GRAPHIC STYLE: Organic warmth — soft botanical or brushstroke decorative elements at low opacity, "
+        "warm color palette. Feels handcrafted and genuine, not corporate."
     ),
     "colorato": (
-        "GRAPHIC ELEMENTS: Energetic and bold — overlapping geometric shapes (circles or arcs) in {primary} "
-        "and {accent} as background decoration at 20-30% opacity. Strong color blocks. Joyful without being chaotic."
+        "GRAPHIC STYLE: Bold and joyful — overlapping geometric shapes (circles, arcs) in brand colors "
+        "as background accents. Strong color blocks. Energetic without being chaotic."
     ),
     "moderno": (
-        "GRAPHIC ELEMENTS: Contemporary and sharp — bold geometric elements: a diagonal rectangle block "
-        "in {primary} or {accent}, or strong diagonal lines in the background. High contrast. Confident and forward."
+        "GRAPHIC STYLE: Contemporary and sharp — bold geometric elements, diagonal lines or blocks "
+        "in brand colors. High contrast. Confident typographic presence."
     ),
 }
-
-
-def _pick_layout_variant(archetype: str, content_id: str) -> dict:
-    """
-    Seleziona deterministicamente una variante di layout basandosi su content_id.
-    Stesso content_id → stessa variante sempre.
-    Content_id diversi → distribuzione bilanciata tra le 3 varianti.
-    """
-    variants = _LAYOUT_VARIANTS.get(archetype) or _LAYOUT_VARIANTS.get("editorial", [])
-    if not variants:
-        return {"name": "default", "description": ""}
-    idx = int(hashlib.md5((content_id or "default").encode()).hexdigest(), 16) % len(variants)
-    return variants[idx]
-
-
-def _build_layout_description(variant: dict, vals: dict) -> str:
-    """Sostituisce i placeholder nella descrizione della variante con i valori reali del brand."""
-    desc = variant["description"]
-    for key, value in vals.items():
-        desc = desc.replace("{" + key + "}", str(value))
-    return f"LAYOUT TEMPLATE — {variant['name'].replace('_', ' ').upper()}:\n{desc}"
 
 
 # ── 2. Generazione brief visivo ────────────────────────────────────
@@ -993,50 +852,22 @@ async def generate_visual_brief(
         "mixed":         "titolo in serif, testo corpo in sans-serif",
     }.get(typo_style, "font serif elegante")
 
-    photo_treatment = {
-        "bright_natural": "bright, natural lighting — warm window light feel, vivid and clean colors",
-        "warm_moody":     "warm moody treatment — amber tones, soft shadows, intimate and cozy feel",
-        "clean_white":    "clean clinical look — flat even lighting, neutral white balance, ultra clean",
-        "dark_luxury":    "dark luxury feel — deep rich tones, strong contrasts, premium and dramatic",
-    }.get(photo_style, "bright, natural lighting")
+    # Obiettivo creativo dell'archetype (in italiano per il brief all'estetista)
+    archetype_goal_it = {
+        "before_after":  "Mostrare la trasformazione prima/dopo in modo che l'impatto si veda subito",
+        "editorial":     "Creare un'immagine aspirazionale e curata, stile editoriale beauty",
+        "educational":   "Spiegare il trattamento in modo chiaro e invitante — si legge in 3 secondi",
+        "behind_scenes": "Catturare un momento autentico del lavoro in cabina, minimal e genuino",
+        "promo":         "Creare un post d'impatto che invoglia subito a prenotare",
+    }.get(archetype, "Creare un post bello e coerente col brand")
 
-    font_style = {
-        "serif_elegant": "elegant serif font (Playfair Display or similar)",
-        "sans_modern":   "modern clean sans-serif (Inter or Helvetica)",
-        "mixed":         "serif for titles, sans-serif for supporting text",
-    }.get(typo_style, "elegant serif font")
-
-    style_feel = {
-        "minimal":   "minimal, clean and restrained — lots of breathing space",
-        "luxury":    "opulent luxury — rich textures, refined details, premium editorial feel",
-        "naturale":  "natural and organic — earthy palette, soft edges, botanical warmth",
-        "colorato":  "vibrant and joyful — bold colors, energetic, warm and inviting",
-        "moderno":   "modern and bold — geometric elements, strong type, contemporary edge",
-    }.get((visual_style or "minimal").lower().split()[0], "clean and professional")
-
-    graphic_raw = _STYLE_GRAPHIC_ELEMENTS.get(
-        (visual_style or "minimal").lower().split()[0], _STYLE_GRAPHIC_ELEMENTS["minimal"]
-    )
-    graphic_desc = graphic_raw.replace("{accent}", accent_color).replace("{primary}", primary_color).replace("{secondary}", secondary_color)
-
-    # Seleziona la variante di layout (stessa che verrà usata in generate_image)
-    content_id = str(content_record.get("id") or "")
-    variant = _pick_layout_variant(archetype, content_id)
-    brand_vals = {
-        "primary": primary_color, "secondary": secondary_color,
-        "accent": accent_color, "bg": bg_color,
-        "font": font_style, "photo_treat": photo_treatment,
-        "center": center_name, "service": service_name,
-        "feel": style_feel, "graphic": graphic_desc,
-    }
-    layout_en = _build_layout_description(variant, brand_vals)
-
-    prompt = f"""Stai pianificando un post {archetype} per: {center_name}
+    prompt = f"""Stai per creare un post per: {center_name}
 Servizio: {service_name}
+Tipo di post: {archetype}
 {f"Note dell'estetista: {notes}" if notes else ""}
 Regola privacy: {consent_instruction}
 
-PALETTE BRAND (usa ESATTAMENTE questi colori):
+PALETTE BRAND (usa ESATTAMENTE questi colori, descrivendoli in italiano):
 - Primario: {primary_color}
 - Secondario: {secondary_color}
 - Accento: {accent_color}
@@ -1045,30 +876,31 @@ PALETTE BRAND (usa ESATTAMENTE questi colori):
 STILE FOTO: {photo_style_desc}
 TIPOGRAFIA: {typo_desc}
 
-STRUTTURA GRAFICA SELEZIONATA — descrivi all'estetista in italiano semplice cosa farai,
-seguendo FEDELMENTE questo piano:
-{layout_en}
+OBIETTIVO DEL POST: {archetype_goal_it}
 
-Traduci il piano tecnico qui sopra in italiano naturale, come se spiegassi a un'amica
-cosa stai per creare. Struttura la risposta così:
+Guarda le foto e immagina liberamente il post più bello e d'impatto che puoi creare
+per questo servizio con queste foto. Hai libertà creativa completa su layout e composizione.
 
-📐 LAYOUT
-(Descrivi il posizionamento degli elementi come nel piano tecnico)
+Descrivi IN ITALIANO SEMPLICE la tua idea — come se spiegassi a un'amica cosa stai
+per fare. Struttura così:
+
+📐 IDEA
+(In 1-2 frasi: che tipo di composizione hai scelto e perché funziona per questo contenuto)
 
 🎨 STILE
-(Colori esatti, trattamento foto, elementi grafici — dal piano tecnico)
+(Colori usati — descritti in parole, non codici. Trattamento foto. Atmosfera)
 
 ✍️ TESTO
-(Testi, label, nome centro — dove appaiono e in quale stile)
+(Cosa scrivi, dove lo metti, con che font/stile)
 
-✨ EFFETTO FINALE
-(Che sensazione trasmetterà? Cosa colpirà chi scorre il feed?)
+✨ EFFETTO
+(Che sensazione trasmetterà? Cosa farà fermare chi scorre il feed?)
 
 Regole:
-- Italiano semplice, ZERO termini tecnici (niente "overlay", "compositing", "mockup", "gradient")
-- Sostituisci i codici colore con descrizioni (es. "viola profondo" per {primary_color})
-- Max 140 parole totali
-- Usa SOLO le foto fornite, non inventare elementi non presenti"""
+- Italiano semplice, ZERO termini tecnici ("overlay", "compositing", "gradient" non esistono)
+- Descrivi i colori con parole normali (es. "viola profondo", "rosa antico", "crema")
+- Max 150 parole
+- Usa SOLO le foto fornite — non inventare elementi assenti"""
 
     try:
         client = _get_client()
@@ -1155,53 +987,45 @@ async def generate_image(
         "moderno":   "modern and bold — geometric elements, strong type, contemporary edge",
     }.get((visual_style or "minimal").lower().split()[0], "clean and professional")
 
-    # Graphic elements for visual style
-    graphic_raw = _STYLE_GRAPHIC_ELEMENTS.get(
-        (visual_style or "minimal").lower().split()[0], _STYLE_GRAPHIC_ELEMENTS["minimal"]
-    )
-    graphic_desc = (
-        graphic_raw
-        .replace("{accent}", accent_color)
-        .replace("{primary}", primary_color)
-        .replace("{secondary}", secondary_color)
+    graphic_direction = _STYLE_GRAPHIC_DIRECTION.get(
+        (visual_style or "minimal").lower().split()[0], _STYLE_GRAPHIC_DIRECTION["minimal"]
     )
 
-    # Seleziona variante di layout — deterministica su content_id (stessa del brief)
-    content_id = str(content_record.get("id") or "")
-    variant = _pick_layout_variant(archetype, content_id)
-    brand_vals = {
-        "primary": primary_color, "secondary": secondary_color,
-        "accent": accent_color, "bg": bg_color,
-        "font": font_style, "photo_treat": photo_treatment,
-        "center": center_name, "service": service_name,
-        "feel": style_feel, "graphic": graphic_desc,
-    }
-    layout_from_variant = _build_layout_description(variant, brand_vals)
+    # Ispirazione composizione — Gemini sceglie o inventa liberamente
+    inspirations = _ARCHETYPE_INSPIRATIONS.get(archetype, _ARCHETYPE_INSPIRATIONS["editorial"])
+    insp_str = "\n".join(f"  • {i}" for i in inspirations)
+    creative_goal = _ARCHETYPE_CREATIVE_GOALS.get(archetype, "Create a beautiful, on-brand Instagram post.")
 
     if brief:
-        composition = f"VISUAL PLAN — the user approved this brief, follow it precisely:\n{brief}"
+        composition = f"APPROVED VISUAL BRIEF — follow this precisely, the user already approved it:\n{brief}"
     else:
         composition = (
-            f"COMPOSITION GUIDELINES — no approved brief, follow the selected layout template:\n"
-            f"{layout_from_variant}"
+            f"CREATIVE GOAL: {creative_goal}\n\n"
+            f"LAYOUT INSPIRATION — choose one, combine, adapt, or create something entirely different:\n"
+            f"{insp_str}\n\n"
+            f"CREATIVE FREEDOM: You are NOT locked to these options. "
+            f"Design the composition that best serves the goal and the photos you see. "
+            f"Surprise creatively while staying on-brand.\n\n"
+            f"{graphic_direction}"
         )
 
     prompt = (
-        f"You are a professional graphic designer creating an Instagram post for an Italian beauty center.\n\n"
+        f"You are a creative graphic designer making an Instagram post for an Italian beauty center.\n\n"
         f"CENTER: {center_name}\n"
         f"SERVICE: {service_name}\n"
-        f"BRAND COLORS: {primary_color} (primary) · {secondary_color} (secondary) · "
-        f"{accent_color} (accent) · {bg_color} (background)\n"
-        f"VISUAL STYLE: {style_feel}\n"
+        f"PHOTO TREATMENT: {photo_treatment}\n"
         f"TYPOGRAPHY: {font_style}\n"
-        f"PRIVACY RULE: {consent_instruction}\n\n"
+        f"BRAND COLORS (use EXACTLY these — never substitute):\n"
+        f"  Primary: {primary_color} · Secondary: {secondary_color} "
+        f"· Accent: {accent_color} · Background: {bg_color}\n"
+        f"OVERALL FEEL: {style_feel}\n"
+        f"PRIVACY: {consent_instruction}\n\n"
         f"{composition}\n\n"
-        f"FORMAT: Instagram-ready 1:1 square (1080×1080px equivalent).\n\n"
-        f"CRITICAL RULES:\n"
-        f"- Use ONLY the photos provided. Do NOT invent or add photos not given to you.\n"
-        f"- If only one photo is given, create a single-photo composition.\n"
-        f"- Brand colors must match EXACTLY — do not substitute or invent colors.\n"
-        f"- The result must look professional enough to publish immediately.\n\n"
+        f"NON-NEGOTIABLE RULES:\n"
+        f"- Use ONLY the photos given. Never add or invent photos.\n"
+        f"- Brand colors must match EXACTLY.\n"
+        f"- Must include center name '{center_name}' and service name '{service_name}'.\n"
+        f"- Result must be publication-ready, 1:1 square format (1080×1080px).\n\n"
         f"Create the image now."
     )
 
