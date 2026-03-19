@@ -1026,14 +1026,15 @@ async def generate_image(
 
             f"{placement_section}"
 
-            f"Brand: {center_name}\n"
-            f"Service: {service_name or '(see photo)'}\n"
+            f"Brand context (do NOT use as text instruction): {center_name} · {service_name or 'see photo'}\n"
             f"Privacy: {consent_instruction}\n"
             f"Brand colors: primary {primary_color} · secondary {secondary_color} · "
             f"accent {accent_color} · background {bg_color}\n\n"
 
-            + (f"Text to include: {service_text}\n\n" if service_text else "")
             + brief_section +
+
+            f"The visual brief above is the ONLY source of truth for what text to show in the graphic. "
+            f"Do not add any text, brand names, service names, or labels beyond what the brief explicitly specifies.\n\n"
 
             f"Think and design like a professional graphic designer:\n"
             f"You have full creative freedom on composition, typography, graphic elements, and style. "
