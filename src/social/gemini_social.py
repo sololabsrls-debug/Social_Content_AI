@@ -1039,6 +1039,12 @@ async def generate_image(
             f"One absolute rule: the photo fills the entire canvas edge-to-edge — "
             f"never shrink, frame, or letterbox it.\n\n"
 
+            f"The provided photo is the hero of the composition — do NOT alter, retouch, "
+            f"regenerate, or modify the main subject in any way (faces, hands, nails, lashes, "
+            f"skin, treated areas). You may work creatively on background areas, add text, "
+            f"graphic elements, color overlays, or subtle texture — but the subject must remain "
+            f"exactly as in the original photo.\n\n"
+
             f"Output: 1:1 square, publication-ready."
         )
 
