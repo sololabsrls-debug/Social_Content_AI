@@ -632,8 +632,25 @@ Rispondi SOLO con JSON:
                 response_mime_type="application/json",
             ),
         )
-        data = _parse_json_response(response.text)
+        raw_text = response.text
+        logger.debug(f"Risposta Gemini checklist per '{service_name}': {raw_text!r}")
+
+        if not raw_text:
+            candidates = getattr(response, "candidates", None) or []
+            finish_reason = getattr(candidates[0], "finish_reason", "N/A") if candidates else "N/A"
+            logger.warning(
+                f"Gemini ha restituito risposta vuota/None per checklist '{service_name}'. "
+                f"Finish reason: {finish_reason}"
+            )
+            return base_checklist
+
+        data = _parse_json_response(raw_text)
         items_map = {item["id"]: item["instructions"] for item in data.get("instructions", [])}
+        logger.debug(f"items_map per '{service_name}': {items_map}")
+
+        if not items_map:
+            logger.warning(f"Gemini non ha generato istruzioni per '{service_name}'. JSON: {data}")
+            return base_checklist
 
         # Merge: struttura base Python + istruzioni personalizzate Gemini
         result = []
@@ -641,10 +658,15 @@ Rispondi SOLO con JSON:
             item_copy = dict(base_item)
             if base_item["id"] in items_map and items_map[base_item["id"]].strip():
                 item_copy["instructions"] = items_map[base_item["id"]]
+            else:
+                logger.warning(
+                    f"Istruzione mancante/vuota per item '{base_item['id']}' "
+                    f"(servizio: {service_name}). Disponibili: {list(items_map.keys())}"
+                )
             result.append(item_copy)
         return result
     except Exception as e:
-        logger.error(f"Errore personalizzazione checklist per {service_name}: {e}")
+        logger.exception(f"Errore personalizzazione checklist per '{service_name}': {e}")
         return base_checklist  # fallback istruzioni base
 
 
