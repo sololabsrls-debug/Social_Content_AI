@@ -940,7 +940,12 @@ async def generate_image(
     service_name = service_data.get("name") or content_record.get("service_name") or ""
     service_desc = service_data.get("descrizione_breve") or ""
     service_benefits = service_data.get("benefici") or ""
-    brief = content_record.get("visual_brief_override") or content_record.get("visual_brief") or ""
+    brief_override = content_record.get("visual_brief_override")
+    brief = brief_override or content_record.get("visual_brief") or ""
+    logger.info(
+        f"Brief usato per generazione immagine (content {content_record.get('id')}): "
+        f"{'OVERRIDE' if brief_override else 'originale'} — {brief[:120]!r}..."
+    )
 
     brand_system_prompt = _build_brand_system_prompt(tenant)
     social_profile = tenant.get("social_profile") or {}
