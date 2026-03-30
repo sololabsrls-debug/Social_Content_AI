@@ -289,6 +289,333 @@ def _get_next_ai_graphic_category(social_profile: dict) -> str:
     return AI_GRAPHIC_CATEGORIES[(idx + 1) % len(AI_GRAPHIC_CATEGORIES)]
 
 
+async def _pick_spotlight_service(tenant_id: str) -> Optional[dict]:
+    """
+    Sceglie il servizio da mettere in spotlight questa settimana.
+    Prioritizza servizi non recentemente spotlightati.
+    Ritorna dict con id, name, descrizione_breve, benefici oppure None.
+    """
+    try:
+        from src.supabase_client import get_supabase
+        sb = get_supabase()
+
+        # Tutti i servizi attivi del tenant
+        services_res = (
+            sb.table("services")
+            .select("id, name, descrizione_breve, benefici")
+            .eq("tenant_id", tenant_id)
+            .eq("is_active", True)
+            .execute()
+        )
+        services = services_res.data or []
+        if not services:
+            return None
+
+        # Ultimi 8 spotlight (social_content con archetype=ai_graphic e service_id valorizzato)
+        recent_res = (
+            sb.table("social_content")
+            .select("service_id")
+            .eq("tenant_id", tenant_id)
+            .eq("archetype", "ai_graphic")
+            .not_.is_("service_id", "null")
+            .order("created_at", desc=True)
+            .limit(8)
+            .execute()
+        )
+        recent_ids = {
+            row["service_id"]
+            for row in (recent_res.data or [])
+            if row.get("service_id")
+        }
+
+        # Primo servizio non recente
+        for s in services:
+            if s["id"] not in recent_ids:
+                return s
+
+        # Se tutti recenti, ricomincia dal primo
+        return services[0]
+
+    except Exception as e:
+        logger.warning(f"Errore scelta spotlight service per tenant {tenant_id}: {e}")
+        return None
+
+
+async def _generate_ai_graphic_text(
+    category: str,
+    tenant: dict,
+    spotlight_service: Optional[dict] = None,
+    system_prompt: str = "",
+) -> tuple[str, str, list[str]]:
+    """
+    Genera concept, caption e hashtag per il post ai_graphic.
+    Ritorna (concept, caption, hashtags).
+    concept = tema/titolo principale del post (usato anche come guida per l'immagine).
+    """
+    sp = tenant.get("social_profile") or {}
+    center_name = tenant.get("display_name") or tenant.get("name", "Centro Estetico")
+    hashtags_per_post = sp.get("hashtags_per_post") or 10
+
+    from datetime import datetime
+    import pytz as _pytz
+    month = datetime.now(_pytz.timezone("Europe/Rome")).month
+    season_map = {
+        12: "inverno", 1: "inverno", 2: "inverno",
+        3: "primavera", 4: "primavera", 5: "primavera",
+        6: "estate", 7: "estate", 8: "estate",
+        9: "autunno", 10: "autunno", 11: "autunno",
+    }
+    season = season_map.get(month, "primavera")
+
+    category_instructions = {
+        "tip_beauty": (
+            f'Crea un post "Tip Beauty" — un consiglio pratico e utile sulla cura della bellezza.\n'
+            f"Il consiglio deve essere specifico e direttamente applicabile.\n"
+            f"Scegli un tema coerente con i servizi di {center_name} (ciglia, sopracciglia, unghie, viso, corpo).\n"
+            f"CONCEPT: il consiglio in max 15 parole (es. 'Come mantenere le ciglia laminate più a lungo').\n"
+            f"CAPTION: sviluppa il consiglio in modo coinvolgente (3-5 frasi)."
+        ),
+        "spotlight": (
+            f"Crea un post che mette in vetrina il servizio: "
+            f"{spotlight_service.get('name', 'servizio') if spotlight_service else 'servizio del centro'}.\n"
+            f"Descrizione: {spotlight_service.get('descrizione_breve', '') if spotlight_service else ''}\n"
+            f"Benefici: {spotlight_service.get('benefici', '') if spotlight_service else ''}\n"
+            f"CONCEPT: titolo del post (es. 'Scopri la Laminazione Ciglia — il segreto dello sguardo perfetto').\n"
+            f"CAPTION: descrivi il servizio con entusiasmo, 2-3 benefici chiave, invita a prenotare."
+        ),
+        "stagionale": (
+            f"Crea un post stagionale per {season} — mese {month}.\n"
+            f"Collega il messaggio ai trattamenti consigliati per questa stagione.\n"
+            f"CONCEPT: tema stagionale principale "
+            f"(es. 'Primavera: il momento giusto per rinnovare la pelle').\n"
+            f"CAPTION: collega il messaggio stagionale ai trattamenti del centro."
+        ),
+        "ispirazione": (
+            f"Crea un post ispirazionale — una citazione o pensiero motivazionale sul benessere e la cura di sé.\n"
+            f"La citazione deve essere breve, originale, non banale.\n"
+            f"CONCEPT: la citazione stessa (max 20 parole).\n"
+            f"CAPTION: 1-2 frasi che collegano il pensiero al brand {center_name}."
+        ),
+    }
+
+    prompt = (
+        f"Sei il social media manager di {center_name}, un centro estetico italiano.\n\n"
+        f"{category_instructions.get(category, category_instructions['tip_beauty'])}\n\n"
+        f"Rispondi SOLO con JSON:\n"
+        f'{{\n'
+        f'  "concept": "titolo/tema principale del post (max 20 parole)",\n'
+        f'  "caption": "testo caption Instagram completo in italiano (3-5 frasi, CTA finale inclusa)",\n'
+        f'  "hashtags": ["hashtag1", "hashtag2", ...]\n'
+        f'}}\n\n'
+        f"Regole caption:\n"
+        f"- Tono: {sp.get('tone_of_voice', 'caldo e professionale')}\n"
+        f"- {hashtags_per_post} hashtag rilevanti (mix brand + niche + trend italiani)\n"
+        f"- NO hashtag nel corpo della caption, solo nell'array"
+    )
+
+    try:
+        client = _get_client()
+        response = await client.aio.models.generate_content(
+            model=MODEL_TEXT,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt if system_prompt else None,
+                temperature=0.7,
+                response_mime_type="application/json",
+            ),
+        )
+        data = _parse_json_response(response.text)
+        concept = data.get("concept", "")
+        caption = data.get("caption", "")
+        hashtags = data.get("hashtags", [])
+        logger.debug(f"ai_graphic testo generato — concept: {concept!r}")
+        return concept, caption, hashtags
+    except Exception as e:
+        logger.error(f"Errore generazione testo ai_graphic ({category}): {e}")
+        center = tenant.get("display_name") or tenant.get("name", "il nostro centro")
+        return (
+            f"Post {category}",
+            f"Scopri i nostri trattamenti presso {center}! Prenota ora → link in bio",
+            [],
+        )
+
+
+async def _generate_ai_graphic_image(
+    category: str,
+    concept: str,
+    tenant: dict,
+    spotlight_service: Optional[dict] = None,
+) -> tuple[Optional[bytes], Optional[bytes]]:
+    """
+    Genera la grafica Instagram da zero — nessuna foto reale in input.
+    Ritorna (feed_bytes 1:1, story_bytes 9:16).
+    """
+    sp = tenant.get("social_profile") or {}
+    center_name = tenant.get("display_name") or tenant.get("name", "Centro Estetico")
+    primary_color = tenant.get("theme_primary_color") or "#6b2d4e"
+    secondary_color = tenant.get("theme_secondary_color") or "#c9a0b4"
+    accent_color = sp.get("accent_color") or secondary_color
+    bg_color = sp.get("background_color") or "#fdf5f0"
+
+    photo_style_labels = {
+        "bright_natural": "bright and airy, natural light, vibrant but soft tones",
+        "warm_moody": "warm and atmospheric, amber tones, soft shadows",
+        "clean_white": "clean white background, flat professional lighting, minimal elegance",
+        "dark_luxury": "dark luxury aesthetic, high contrast, premium feel",
+    }
+    visual_style = photo_style_labels.get(
+        sp.get("photo_style") or "bright_natural",
+        "bright and airy",
+    )
+
+    typo_labels = {
+        "serif_elegant": "elegant serif typography (Playfair Display style)",
+        "sans_modern": "clean modern sans-serif (Inter / Helvetica style)",
+        "mixed": "mixed typography: serif headline, sans-serif body",
+    }
+    typo_style = typo_labels.get(
+        sp.get("typography_style") or "serif_elegant",
+        "elegant serif typography",
+    )
+
+    service_name = spotlight_service.get("name", "") if spotlight_service else ""
+    service_benefits = spotlight_service.get("benefici", "") if spotlight_service else ""
+
+    category_design = {
+        "tip_beauty": (
+            f"GRAPHIC TYPE: Beauty tip post\n"
+            f"MAIN TEXT (Italian): {concept}\n\n"
+            f"LAYOUT: Clean text-based graphic. Large readable tip text as the hero element. "
+            f"Soft background using brand colors. Small decorative botanical or geometric element. "
+            f"Center name '{center_name}' as subtle signature at the bottom."
+        ),
+        "spotlight": (
+            f"GRAPHIC TYPE: Service spotlight promotional post\n"
+            f"SERVICE: {service_name or concept}\n"
+            f"KEY MESSAGE (Italian): {concept}\n"
+            f"BENEFITS: {service_benefits}\n\n"
+            f"LAYOUT: Premium promotional graphic. Service name large and prominent. "
+            f"Background gradient using {primary_color} and {secondary_color}. "
+            f"2-3 benefit points. 'Prenota ora' call to action. "
+            f"Center name '{center_name}' as signature."
+        ),
+        "stagionale": (
+            f"GRAPHIC TYPE: Seasonal post\n"
+            f"MAIN MESSAGE (Italian): {concept}\n\n"
+            f"LAYOUT: Seasonal mood graphic. Abstract seasonal botanical or geometric elements "
+            f"(flowers, leaves, warm/cool tones depending on season). "
+            f"Brand colors blended with season palette. "
+            f"Main text centered. Center name '{center_name}' as signature."
+        ),
+        "ispirazione": (
+            f"GRAPHIC TYPE: Inspirational quote post\n"
+            f"QUOTE (Italian): {concept}\n\n"
+            f"LAYOUT: Minimal quote graphic. Quote text centered, large, {typo_style}. "
+            f"Soft elegant background ({bg_color} or soft gradient of {primary_color}). "
+            f"Minimal decorative element (thin line or small flourish). "
+            f"Center name '{center_name}' as small signature at the bottom."
+        ),
+    }
+
+    prompt = (
+        f"Create a professional, publication-ready 1:1 Instagram graphic "
+        f"for Italian beauty salon '{center_name}'.\n\n"
+        f"{category_design.get(category, category_design['tip_beauty'])}\n\n"
+        f"BRAND IDENTITY:\n"
+        f"- Visual mood: {visual_style}\n"
+        f"- Typography: {typo_style}\n"
+        f"- Primary color: {primary_color}\n"
+        f"- Secondary color: {secondary_color}\n"
+        f"- Accent: {accent_color}\n"
+        f"- Background: {bg_color}\n\n"
+        f"ABSOLUTE RULES:\n"
+        f"- This is a GRAPHIC DESIGN post, NOT a photo\n"
+        f"- Do NOT include realistic photos, faces, hands, or skin\n"
+        f"- Use abstract shapes, flat illustrations, or typography as the main visual element\n"
+        f"- All text visible in the graphic must be in Italian\n"
+        f"- Professional beauty brand aesthetic — Canva premium template quality\n"
+        f"- Output: 1:1 square, publication-ready"
+    )
+
+    try:
+        client = _get_client()
+        response = await client.aio.models.generate_content(
+            model=MODEL_IMAGE,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["TEXT", "IMAGE"],
+                image_config=types.ImageConfig(aspect_ratio="1:1"),
+            ),
+        )
+        feed_bytes = _extract_image_from_response(response)
+        if not feed_bytes:
+            logger.error(f"Gemini non ha restituito immagine per ai_graphic/{category}")
+            return None, None
+
+        feed_pil = _image_to_pil(feed_bytes)
+        story_bytes = _create_story_version(feed_pil)
+        logger.info(f"Immagine ai_graphic/{category} generata")
+        return feed_bytes, story_bytes
+
+    except Exception as e:
+        logger.error(f"Errore generazione immagine ai_graphic ({category}): {e}")
+        return None, None
+
+
+async def generate_ai_graphic_post(tenant: dict) -> dict:
+    """
+    Genera un post settimanale completamente AI (nessuna foto richiesta).
+
+    Ritorna un dict con tutti i campi per il record social_content,
+    più 'feed_bytes' e 'story_bytes' (bytes da caricare su Storage)
+    e 'ai_graphic_category' (categoria usata, per aggiornare la rotazione).
+    """
+    social_profile = tenant.get("social_profile") or {}
+    tenant_id = tenant.get("id", "")
+
+    # 1. Categoria corrente dalla rotazione
+    category = _get_next_ai_graphic_category(social_profile)
+    logger.info(f"[ai_graphic] tenant={tenant_id} categoria={category}")
+
+    # 2. Se spotlight, scegli servizio da mettere in vetrina
+    spotlight_service = None
+    if category == "spotlight":
+        spotlight_service = await _pick_spotlight_service(tenant_id)
+        svc_name = spotlight_service.get("name") if spotlight_service else "nessuno"
+        logger.info(f"[ai_graphic] spotlight → servizio: {svc_name}")
+
+    # 3. Genera testo
+    brand_system_prompt = _build_brand_system_prompt(tenant)
+    concept, caption, hashtags = await _generate_ai_graphic_text(
+        category=category,
+        tenant=tenant,
+        spotlight_service=spotlight_service,
+        system_prompt=brand_system_prompt,
+    )
+
+    # 4. Genera immagine
+    feed_bytes, story_bytes = await _generate_ai_graphic_image(
+        category=category,
+        concept=concept,
+        tenant=tenant,
+        spotlight_service=spotlight_service,
+    )
+
+    return {
+        "archetype": "ai_graphic",
+        "content_type": "post",
+        "material_checklist": [],
+        "photos_input": [],
+        "caption_text": caption,
+        "hashtags": hashtags,
+        "selection_rationale": f"Post AI settimanale — categoria: {category}",
+        "ai_graphic_category": category,
+        "feed_bytes": feed_bytes,
+        "story_bytes": story_bytes,
+        "service_id": spotlight_service.get("id") if spotlight_service else None,
+    }
+
+
 def _pick_archetype_by_rotation(
     weights: dict[str, int],
     recent_archetypes: list[str],
