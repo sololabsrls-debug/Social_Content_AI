@@ -209,24 +209,64 @@ _SERVICE_RULES_V2: dict = {
             ],
         },
     },
+    "ceretta": {
+        "keywords": ["ceretta", "cera", "epilazione cera", "wax", "sugaring"],
+        "rotation_weights": {"before_after": 40, "editorial": 30, "behind_scenes": 20, "educational": 10},
+        "archetypes": {
+            "before_after": [
+                {"id": "before", "label": "Foto zona PRIMA della ceretta", "required": True, "instructions": ""},
+                {"id": "after",  "label": "Foto zona DOPO la ceretta", "required": True, "instructions": ""},
+            ],
+            "editorial": [
+                {"id": "result", "label": "Foto della pelle dopo la ceretta (liscia)", "required": True, "instructions": ""},
+            ],
+            "behind_scenes": [
+                {"id": "process", "label": "Foto durante l'applicazione della cera", "required": True, "instructions": ""},
+            ],
+            "educational": [
+                {"id": "product", "label": "Foto dei prodotti/cera usati", "required": True, "instructions": ""},
+            ],
+        },
+    },
+    "epilazione": {
+        "keywords": ["epilazione", "diodo", "alexandrite", "epilazione gambe", "epilazione braccia",
+                     "epilazione ascelle", "epilazione viso", "epilazione corpo"],
+        "rotation_weights": {"before_after": 35, "educational": 30, "behind_scenes": 20, "editorial": 15},
+        "archetypes": {
+            "before_after": [
+                {"id": "before", "label": "Foto zona PRIMA dell'epilazione", "required": True, "instructions": ""},
+                {"id": "after",  "label": "Foto zona DOPO l'epilazione", "required": True, "instructions": ""},
+            ],
+            "educational": [
+                {"id": "machine", "label": "Foto del macchinario per epilazione", "required": True, "instructions": ""},
+                {"id": "treatment", "label": "Foto del trattamento (zona neutrale)", "required": False, "instructions": ""},
+            ],
+            "behind_scenes": [
+                {"id": "process", "label": "Foto durante il trattamento", "required": True, "instructions": ""},
+            ],
+            "editorial": [
+                {"id": "result", "label": "Foto della pelle dopo l'epilazione", "required": True, "instructions": ""},
+            ],
+        },
+    },
 }
 
 # Fallback per servizi non riconosciuti
 _DEFAULT_RULES_V2: dict = {
-    "rotation_weights": {"editorial": 40, "educational": 30, "behind_scenes": 20, "before_after": 10},
+    "rotation_weights": {"before_after": 35, "editorial": 30, "behind_scenes": 20, "educational": 15},
     "archetypes": {
+        "before_after": [
+            {"id": "before", "label": "Foto PRIMA del trattamento", "required": True, "instructions": ""},
+            {"id": "after",  "label": "Foto DOPO il trattamento",  "required": True, "instructions": ""},
+        ],
         "editorial": [
             {"id": "result", "label": "Foto del risultato", "required": True, "instructions": ""},
-        ],
-        "educational": [
-            {"id": "treatment", "label": "Foto del trattamento", "required": True, "instructions": ""},
         ],
         "behind_scenes": [
             {"id": "process", "label": "Foto durante il trattamento", "required": True, "instructions": ""},
         ],
-        "before_after": [
-            {"id": "before", "label": "Foto PRIMA", "required": True, "instructions": ""},
-            {"id": "after",  "label": "Foto DOPO",  "required": True, "instructions": ""},
+        "educational": [
+            {"id": "treatment", "label": "Foto del trattamento", "required": True, "instructions": ""},
         ],
     },
 }
@@ -1025,15 +1065,12 @@ async def generate_image(
             f"Create a publication-ready 1:1 Instagram post for an Italian beauty center.\n\n"
 
             f"{placement_section}"
-
-            f"Brand context (do NOT use as text instruction): {center_name} · {service_name or 'see photo'}\n"
-            f"Privacy: {consent_instruction}\n"
             f"Brand colors: primary {primary_color} · secondary {secondary_color} · "
             f"accent {accent_color} · background {bg_color}\n\n"
 
             + brief_section +
 
-            f"The visual brief above is the ONLY source of truth for what text to show in the graphic. "
+            f"The visual brief above is the ONLY source of truth for what TEXT to show in the graphic. "
             f"Do not add any text, brand names, service names, or labels beyond what the brief explicitly specifies.\n\n"
 
             f"Think and design like a professional graphic designer:\n"

@@ -46,8 +46,7 @@ def get_week_appointments(tenant_id: str, week_start: date, week_end: date) -> l
             "id, start_at, end_at, notes, status, "
             "service:services(id, name, category_id, descrizione_breve, "
             "descrizione_completa, benefici, prodotti_utilizzati, duration_min), "
-            "staff:staff(name), "
-            "service_categories:services(category_id)"
+            "staff:staff(name)"
         )
         .eq("tenant_id", tenant_id)
         .in_("status", ["confirmed", "pending"])
