@@ -273,7 +273,7 @@ _DEFAULT_RULES_V2: dict = {
 
 # ── AI Graphic — rotazione categorie settimanali ──────────────────
 
-AI_GRAPHIC_CATEGORIES = ["tip_beauty", "spotlight", "stagionale", "ispirazione"]
+AI_GRAPHIC_CATEGORIES = ["tip_beauty", "spotlight", "stagionale", "curiosita"]
 
 
 def _get_next_ai_graphic_category(social_profile: dict) -> str:
@@ -390,11 +390,12 @@ async def _generate_ai_graphic_text(
             f"(es. 'Primavera: il momento giusto per rinnovare la pelle').\n"
             f"CAPTION: collega il messaggio stagionale ai trattamenti del centro."
         ),
-        "ispirazione": (
-            f"Crea un post ispirazionale — una citazione o pensiero motivazionale sul benessere e la cura di sé.\n"
-            f"La citazione deve essere breve, originale, non banale.\n"
-            f"CONCEPT: la citazione stessa (max 20 parole).\n"
-            f"CAPTION: 1-2 frasi che collegano il pensiero al brand {center_name}."
+        "curiosita": (
+            f"Crea un post 'Lo sapevi che...?' su un trattamento estetico offerto da {center_name}.\n"
+            f"La curiosità deve essere sorprendente, vera e direttamente legata a un servizio del centro.\n"
+            f"Esempi: durata reale di un trattamento, un beneficio inaspettato, un fatto scientifico sul trattamento.\n"
+            f"CONCEPT: la curiosità in forma di domanda o affermazione (max 15 parole, es. 'Lo sapevi che la laminazione ciglia dura fino a 8 settimane?').\n"
+            f"CAPTION: sviluppa la curiosità con 2-3 frasi di approfondimento + invita a scoprire il trattamento."
         ),
     }
 
@@ -507,13 +508,13 @@ async def _generate_ai_graphic_image(
             f"Brand colors blended with season palette. "
             f"Main text centered. Center name '{center_name}' as signature."
         ),
-        "ispirazione": (
-            f"GRAPHIC TYPE: Inspirational quote post\n"
-            f"QUOTE (Italian): {concept}\n\n"
-            f"LAYOUT: Minimal quote graphic. Quote text centered, large, {typo_style}. "
-            f"Soft elegant background ({bg_color} or soft gradient of {primary_color}). "
-            f"Minimal decorative element (thin line or small flourish). "
-            f"Center name '{center_name}' as small signature at the bottom."
+        "curiosita": (
+            f"GRAPHIC TYPE: 'Did you know?' beauty curiosity post\n"
+            f"CURIOSITY (Italian): {concept}\n\n"
+            f"LAYOUT: Engaging informational graphic. Large question or fact text as the hero. "
+            f"Use a playful but elegant visual element (lightbulb icon, sparkle, or abstract shape). "
+            f"Background: soft {bg_color} or light gradient of {primary_color}. "
+            f"Center name '{center_name}' as signature at the bottom."
         ),
     }
 

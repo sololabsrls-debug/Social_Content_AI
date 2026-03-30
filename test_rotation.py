@@ -12,10 +12,10 @@ def test_rotation():
     # Avanzamento normale
     assert _get_next_ai_graphic_category({"last_ai_graphic_category": "tip_beauty"}) == "spotlight"
     assert _get_next_ai_graphic_category({"last_ai_graphic_category": "spotlight"}) == "stagionale"
-    assert _get_next_ai_graphic_category({"last_ai_graphic_category": "stagionale"}) == "ispirazione"
+    assert _get_next_ai_graphic_category({"last_ai_graphic_category": "stagionale"}) == "curiosita"
 
     # Ciclo completo
-    assert _get_next_ai_graphic_category({"last_ai_graphic_category": "ispirazione"}) == "tip_beauty"
+    assert _get_next_ai_graphic_category({"last_ai_graphic_category": "curiosita"}) == "tip_beauty"
 
     # Valore non valido → ricomincia
     assert _get_next_ai_graphic_category({"last_ai_graphic_category": "xyz"}) == "tip_beauty"
