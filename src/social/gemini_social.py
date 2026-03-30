@@ -271,6 +271,23 @@ _DEFAULT_RULES_V2: dict = {
     },
 }
 
+# ── AI Graphic — rotazione categorie settimanali ──────────────────
+
+AI_GRAPHIC_CATEGORIES = ["tip_beauty", "spotlight", "stagionale", "ispirazione"]
+
+
+def _get_next_ai_graphic_category(social_profile: dict) -> str:
+    """
+    Ritorna la categoria da usare questa settimana.
+    Cicla tra AI_GRAPHIC_CATEGORIES basandosi su last_ai_graphic_category
+    nel social_profile del tenant.
+    """
+    last = social_profile.get("last_ai_graphic_category")
+    if not last or last not in AI_GRAPHIC_CATEGORIES:
+        return AI_GRAPHIC_CATEGORIES[0]
+    idx = AI_GRAPHIC_CATEGORIES.index(last)
+    return AI_GRAPHIC_CATEGORIES[(idx + 1) % len(AI_GRAPHIC_CATEGORIES)]
+
 
 def _pick_archetype_by_rotation(
     weights: dict[str, int],
