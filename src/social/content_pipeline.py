@@ -27,6 +27,7 @@ from src.social.gemini_social import (
     generate_visual_brief,
     generate_image,
     generate_image_variants,
+    generate_ai_graphic_post,
 )
 
 logger = logging.getLogger("SOCIAL.pipeline")
@@ -211,6 +212,64 @@ async def run_weekly_pipeline(tenant_id: str, week_start_override: str | None = 
             records_created += 1
         except Exception as e:
             logger.error(f"Errore salvataggio record social_content: {e}")
+
+    # ── Post AI Graphic settimanale ──────────────────────────────
+    try:
+        ai_post = await generate_ai_graphic_post(tenant)
+
+        ai_feed_bytes = ai_post.pop("feed_bytes", None)
+        ai_story_bytes = ai_post.pop("story_bytes", None)
+        ai_category = ai_post.pop("ai_graphic_category", "tip_beauty")
+
+        # Carica immagini su Storage se generate
+        ai_feed_url, ai_story_url = None, None
+        if ai_feed_bytes and ai_story_bytes:
+            import uuid as _uuid
+            tmp_id = str(_uuid.uuid4())
+            ai_feed_url, ai_story_url = _save_images_to_storage(
+                tenant_id=tenant_id,
+                content_id=tmp_id,
+                feed_bytes=ai_feed_bytes,
+                story_bytes=ai_story_bytes,
+                suffix="_ai",
+            )
+
+        # Giorno pubblicazione: sabato della settimana
+        ai_scheduled_date = str(week_start + timedelta(days=5))
+
+        ai_record = {
+            "tenant_id": tenant_id,
+            "appointment_id": None,
+            "service_id": ai_post.get("service_id"),
+            "week_start": str(week_start),
+            "week_end": str(week_end),
+            "scheduled_date": ai_scheduled_date,
+            "platform": platform_value,
+            "content_type": ai_post.get("content_type", "post"),
+            "archetype": "ai_graphic",
+            "material_checklist": [],
+            "caption_text": ai_post.get("caption_text"),
+            "hashtags": ai_post.get("hashtags", []),
+            "selection_rationale": ai_post.get("selection_rationale"),
+            "status": "draft",
+            "photos_input": [],
+            "client_consent": "no_client",
+            "image_url_feed": ai_feed_url,
+            "image_url_story": ai_story_url,
+            "image_generated_at": datetime.now(ROME_TZ).isoformat(),
+        }
+
+        create_social_content(ai_record)
+        records_created += 1
+        logger.info(f"[ai_graphic] post creato — categoria: {ai_category}")
+
+        # Aggiorna rotazione nel social_profile del tenant
+        updated_profile = {**social_profile, "last_ai_graphic_category": ai_category}
+        sb.table("tenants").update({"social_profile": updated_profile}).eq("id", tenant_id).execute()
+
+    except Exception as e:
+        logger.error(f"[ai_graphic] errore generazione post settimanale: {e}")
+        # Non blocca il resto del pipeline
 
     logger.info(
         f"Tenant {tenant_id}: piano settimana {week_start} creato "
