@@ -253,7 +253,7 @@ _SERVICE_RULES_V2: dict = {
 
 # Fallback per servizi non riconosciuti
 _DEFAULT_RULES_V2: dict = {
-    "rotation_weights": {"before_after": 35, "editorial": 30, "behind_scenes": 20, "educational": 15},
+    "rotation_weights": {"before_after": 25, "editorial": 35, "behind_scenes": 25, "educational": 15},
     "archetypes": {
         "before_after": [
             {"id": "before", "label": "Foto PRIMA del trattamento", "required": True, "instructions": ""},
