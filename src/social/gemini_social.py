@@ -586,7 +586,7 @@ async def generate_ai_graphic_post(tenant: dict) -> dict:
         logger.info(f"[ai_graphic] spotlight → servizio: {svc_name}")
 
     # 3. Genera testo
-    brand_system_prompt = _build_brand_system_prompt(tenant)
+    brand_system_prompt = _get_brand_system_prompt(tenant)
     concept, caption, hashtags = await _generate_ai_graphic_text(
         category=category,
         tenant=tenant,
@@ -869,6 +869,152 @@ def _build_brand_system_prompt(tenant: dict) -> str:
     return "\n".join(lines)
 
 
+# ── Brand onboarding conversazionale ──────────────────────────────
+
+async def run_brand_chat_turn(
+    messages: list[dict],
+    existing_profile: dict,
+    tenant_name: str,
+) -> tuple[str, bool]:
+    """
+    Esegue un turno dell'intervista brand.
+    Returns (reply_pulito, is_complete).
+    """
+    profile_context = ""
+    parts = []
+    if existing_profile.get("city"):
+        parts.append(f"Città: {existing_profile['city']}")
+    if existing_profile.get("tagline"):
+        parts.append(f"Tagline: {existing_profile['tagline']}")
+    tone = existing_profile.get("tone_of_voice")
+    if tone:
+        parts.append(f"Tono attuale: {', '.join(tone) if isinstance(tone, list) else tone}")
+    if existing_profile.get("target_description"):
+        parts.append(f"Target: {existing_profile['target_description']}")
+    if parts:
+        profile_context = (
+            "Dati già disponibili (usali come contesto, non chiedere di nuovo):\n"
+            + "\n".join(f"- {p}" for p in parts)
+            + "\n\n"
+        )
+
+    system = (
+        f'Sei un esperto di brand identity per centri estetici italiani.\n'
+        f'Conduci un\'intervista in italiano per capire il brand di "{tenant_name}".\n\n'
+        f'{profile_context}'
+        f'Obiettivo: raccogliere informazioni autentiche per creare un brand prompt efficace.\n\n'
+        f'Schema (max 5-6 domande totali, UNA alla volta):\n'
+        f'1. Prima risposta: presentati in 2 righe, poi chiedi subito cosa rende unico il centro — non tecnicamente, ma come "anima".\n'
+        f'2. Chi è la cliente tipica? Cosa la fa tornare?\n'
+        f'3. Come parlate alle clienti? Dammi un esempio di frase che usereste su Instagram.\n'
+        f'4. Cosa NON volete che si dica mai del vostro centro?\n'
+        f'5. C\'è un servizio o momento speciale che volete valorizzare?\n'
+        f'6. (Solo se mancano info cruciali) Una domanda libera.\n\n'
+        f'Dopo la 5a-6a risposta: di\' "Perfetto, ho tutto quello che mi serve."\n'
+        f'Poi aggiungi ESATTAMENTE il tag (incluse parentesi quadre): [ONBOARDING_COMPLETE]\n\n'
+        f'Tono: professionale ma caldo. Una domanda alla volta. Niente elenchi puntati nelle domande.\n'
+        f'Rispondi SOLO con il messaggio per il titolare.'
+    )
+
+    contents = []
+    # Se no messaggi → messaggio fittizio per far partire l'agente
+    if not messages:
+        contents = [types.Content(role="user", parts=[types.Part(text="Inizia l'intervista.")])]
+    else:
+        for msg in messages:
+            role = "user" if msg["role"] == "user" else "model"
+            contents.append(types.Content(role=role, parts=[types.Part(text=msg["content"])]))
+
+    response = await asyncio.to_thread(
+        _get_client().models.generate_content,
+        model=MODEL_TEXT,
+        contents=contents,
+        config=types.GenerateContentConfig(system_instruction=system),
+    )
+    reply = (response.text or "").strip()
+    is_complete = "[ONBOARDING_COMPLETE]" in reply
+    clean_reply = reply.replace("[ONBOARDING_COMPLETE]", "").strip()
+    return clean_reply, is_complete
+
+
+async def generate_prompt_from_conversation(
+    messages: list[dict],
+    existing_profile: dict,
+    tenant: dict,
+) -> str:
+    """Genera brand_system_prompt completo dalla conversazione di onboarding."""
+    tenant_name = tenant.get("display_name") or tenant.get("name", "Centro Estetico")
+    primary_color = tenant.get("theme_primary_color") or "#6b2d4e"
+    secondary_color = tenant.get("theme_secondary_color") or "#c9a0b4"
+    hashtags = existing_profile.get("brand_hashtags") or []
+    hashtags_str = " ".join(hashtags) if hashtags else "(da definire)"
+
+    conversation = "\n".join(
+        f"{'Agente' if m['role'] == 'assistant' else 'Titolare'}: {m['content']}"
+        for m in messages
+        if m["role"] != "system"
+    )
+
+    system = (
+        f'Sei un esperto copywriter di brand identity per centri estetici italiani.\n'
+        f'Crea un brand_system_prompt per "{tenant_name}" basandoti sull\'intervista.\n\n'
+        f'Il prompt sarà usato come system instruction da un AI per generare contenuti social.\n'
+        f'Deve essere in italiano, concreto, catturare l\'autenticità del brand.\n\n'
+        f'Struttura con separatori ━━━:\n'
+        f'- IDENTITÀ\n- CLIENTE IDEALE\n- VOCE DEL BRAND\n- COSA EVITARE\n- PILASTRI EDITORIALI\n'
+        f'- HASHTAG (includi: {hashtags_str})\n'
+        f'- STILE VISIVO (colori: {primary_color} primario, {secondary_color} secondario)\n\n'
+        f'Prima riga obbligatoria: \'Sei il social media manager esclusivo di "{tenant_name}".\'\n'
+        f'Scrivi come se istruissi un collega. Diretto, specifico, autentico.\n'
+        f'Rispondi SOLO con il prompt, nessun commento aggiuntivo.'
+    )
+
+    response = await asyncio.to_thread(
+        _get_client().models.generate_content,
+        model=MODEL_TEXT,
+        contents=f"INTERVISTA:\n{conversation}\n\nCrea il brand prompt completo.",
+        config=types.GenerateContentConfig(system_instruction=system),
+    )
+    return (response.text or "").strip()
+
+
+def _get_brand_system_prompt(tenant: dict) -> str:
+    """Usa brand_system_prompt personalizzato se esiste, altrimenti build da template."""
+    sp = tenant.get("social_profile") or {}
+    custom = (sp.get("brand_system_prompt") or "").strip()
+    return custom if custom else _build_brand_system_prompt(tenant)
+
+
+async def suggest_prompt_modification(
+    current_prompt: str,
+    instruction: str,
+    tenant_name: str,
+) -> str:
+    """Chiama Gemini per modificare brand_system_prompt seguendo l'istruzione."""
+    system = (
+        f'Sei un esperto di brand identity per centri estetici.\n'
+        f'Compito: modificare il system prompt del brand "{tenant_name}" '
+        f'seguendo l\'istruzione ricevuta.\n\n'
+        f'Regole:\n'
+        f'- Mantieni struttura e sezioni del prompt originale\n'
+        f'- Applica SOLO la modifica richiesta, non stravolgere il resto\n'
+        f'- Il prompt risultante deve essere completo e autonomo\n'
+        f'- Rispondi SOLO con il prompt modificato, nessun commento aggiuntivo'
+    )
+    user_msg = (
+        f"PROMPT ATTUALE:\n{current_prompt}\n\n"
+        f"ISTRUZIONE MODIFICA:\n{instruction}\n\n"
+        f"Restituisci il prompt modificato completo."
+    )
+    response = await asyncio.to_thread(
+        _get_client().models.generate_content,
+        model=MODEL_TEXT,
+        contents=user_msg,
+        config=types.GenerateContentConfig(system_instruction=system),
+    )
+    return (response.text or "").strip()
+
+
 # ── 1. Selezione e pianificazione settimanale ──────────────────────
 
 async def select_and_plan_week(
@@ -921,7 +1067,7 @@ async def select_and_plan_week(
     candidati = candidati[:content_frequency]
 
     # Assembla il system prompt del brand una volta sola
-    brand_system_prompt = _build_brand_system_prompt(tenant)
+    brand_system_prompt = _get_brand_system_prompt(tenant)
 
     # Per ogni candidato: rotazione archetype, Gemini personalizza istruzioni + caption
     results = []
@@ -1163,7 +1309,7 @@ async def generate_visual_brief(
     notes = content_record.get("estetista_notes") or ""
     consent = content_record.get("client_consent", "details_only")
 
-    brand_system_prompt = _build_brand_system_prompt(tenant)
+    brand_system_prompt = _get_brand_system_prompt(tenant)
     social_profile = tenant.get("social_profile") or {}
     center_name = tenant.get("display_name") or tenant.get("name", "Centro Estetico")
     primary_color = tenant.get("theme_primary_color") or "#6b2d4e"
@@ -1332,7 +1478,7 @@ async def generate_image(
         f"{'OVERRIDE' if brief_override else 'originale'} — {brief[:120]!r}..."
     )
 
-    brand_system_prompt = _build_brand_system_prompt(tenant)
+    brand_system_prompt = _get_brand_system_prompt(tenant)
     social_profile = tenant.get("social_profile") or {}
     center_name = tenant.get("display_name") or tenant.get("name", "Centro Estetico")
     primary_color = tenant.get("theme_primary_color") or "#6b2d4e"

@@ -141,3 +141,87 @@ def save_tenant_brand_profile(tenant_id: str, social_profile: dict) -> None:
     """Salva il profilo brand nel campo social_profile del tenant."""
     sb = get_supabase()
     sb.table("tenants").update({"social_profile": social_profile}).eq("id", tenant_id).execute()
+
+
+def get_prompt_data(tenant_id: str) -> dict:
+    """Legge brand_system_prompt e metadati modifica dal social_profile."""
+    sb = get_supabase()
+    res = (
+        sb.table("tenants")
+        .select("social_profile, display_name, name")
+        .eq("id", tenant_id)
+        .maybe_single()
+        .execute()
+    )
+    if not res.data:
+        return {}
+    sp = res.data.get("social_profile") or {}
+    return {
+        "brand_system_prompt": sp.get("brand_system_prompt", ""),
+        "prompt_history": sp.get("prompt_history", []),
+        "prompt_edit_count_week": sp.get("prompt_edit_count_week", 0),
+        "prompt_week_reset_date": sp.get("prompt_week_reset_date", ""),
+        "tenant_name": res.data.get("display_name") or res.data.get("name", "Centro"),
+    }
+
+
+def apply_brand_prompt(
+    tenant_id: str,
+    new_prompt: str,
+    instruction: str = "",
+    is_initial: bool = False,
+) -> dict:
+    """
+    Applica brand_system_prompt con rate limiting (max 3/settimana).
+    Salva snapshot in prompt_history (ultimi 5).
+    Returns {"ok": bool, "remaining": int, "message": str}
+    """
+    from datetime import date, datetime, timedelta
+    import pytz
+
+    MAX_EDITS = 3
+    sb = get_supabase()
+
+    res = sb.table("tenants").select("social_profile").eq("id", tenant_id).maybe_single().execute()
+    sp = (res.data or {}).get("social_profile") or {}
+
+    today = date.today()
+    last_monday = (today - timedelta(days=today.weekday())).isoformat()
+
+    current_count = sp.get("prompt_edit_count_week", 0)
+    current_reset = sp.get("prompt_week_reset_date", "")
+
+    if current_reset != last_monday:
+        current_count = 0
+
+    if not is_initial and current_count >= MAX_EDITS:
+        return {
+            "ok": False,
+            "remaining": 0,
+            "message": f"Limite {MAX_EDITS} modifiche settimanali raggiunto. Reset lunedì.",
+        }
+
+    old_prompt = sp.get("brand_system_prompt", "")
+    history = list(sp.get("prompt_history") or [])
+    if old_prompt:
+        ts = datetime.now(pytz.timezone("Europe/Rome")).isoformat()
+        history = [{"ts": ts, "prompt": old_prompt, "instruction": instruction}] + history
+        history = history[:5]
+
+    new_count = current_count + (0 if is_initial else 1)
+
+    sp_updated = {
+        **sp,
+        "brand_system_prompt": new_prompt,
+        "prompt_history": history,
+        "prompt_edit_count_week": new_count,
+        "prompt_week_reset_date": last_monday,
+    }
+
+    sb.table("tenants").update({"social_profile": sp_updated}).eq("id", tenant_id).execute()
+
+    return {
+        "ok": True,
+        "remaining": MAX_EDITS - new_count,
+        "message": "Prompt aggiornato",
+    }

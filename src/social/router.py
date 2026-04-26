@@ -12,6 +12,8 @@ from src.social.supabase_queries import (
     get_social_content_list,
     update_social_content,
     save_tenant_brand_profile,
+    get_prompt_data,
+    apply_brand_prompt,
 )
 
 logger = logging.getLogger("SOCIAL.router")
@@ -293,3 +295,111 @@ async def save_brand_profile(
 @router.get("/social/health")
 async def health():
     return {"status": "ok", "service": "social-content-ai", "version": "7.4-no-overlay-on-result"}
+
+
+# ── Brand Onboarding Chat ──────────────────────────────────────────
+
+class ChatMessage(BaseModel):
+    role: str   # "user" | "assistant"
+    content: str
+
+
+class BrandChatRequest(BaseModel):
+    messages: list[ChatMessage] = []
+    existing_profile: dict = {}
+
+
+@router.post("/social/brand-prompt/chat")
+async def brand_chat(
+    req: BrandChatRequest,
+    tenant: dict = Depends(get_tenant),
+):
+    """
+    Turno conversazionale onboarding brand.
+    Quando done=True include anche brand_system_prompt generato dalla conversazione.
+    """
+    from src.social.gemini_social import run_brand_chat_turn, generate_prompt_from_conversation
+
+    tenant_name = tenant.get("display_name") or tenant.get("name", "Centro")
+    messages = [m.model_dump() for m in req.messages]
+
+    reply, is_complete = await run_brand_chat_turn(messages, req.existing_profile, tenant_name)
+
+    result: dict = {"reply": reply, "done": is_complete}
+
+    if is_complete:
+        all_messages = messages + [{"role": "assistant", "content": reply}]
+        prompt = await generate_prompt_from_conversation(all_messages, req.existing_profile, tenant)
+        result["brand_system_prompt"] = prompt
+
+    return result
+
+
+# ── Brand Prompt Agent ──────────────────────────────────────────────
+
+class BrandPromptSuggestRequest(BaseModel):
+    instruction: str
+
+
+class BrandPromptApplyRequest(BaseModel):
+    prompt: str
+    instruction: str = ""
+    is_initial: bool = False
+
+
+@router.get("/social/brand-prompt")
+async def get_brand_prompt(tenant: dict = Depends(get_tenant)):
+    """Legge prompt corrente, storico e contatore modifiche."""
+    return get_prompt_data(tenant["id"])
+
+
+@router.post("/social/brand-prompt/suggest")
+async def suggest_brand_prompt(
+    req: BrandPromptSuggestRequest,
+    tenant: dict = Depends(get_tenant),
+):
+    """
+    Chiede a Gemini di modificare il brand_system_prompt.
+    Non applica la modifica, non conta verso il limite settimanale.
+    """
+    from src.social.gemini_social import suggest_prompt_modification, _build_brand_system_prompt
+
+    if not req.instruction.strip():
+        raise HTTPException(status_code=400, detail="Istruzione vuota")
+
+    data = get_prompt_data(tenant["id"])
+    current_prompt = data.get("brand_system_prompt", "").strip()
+
+    if not current_prompt:
+        current_prompt = _build_brand_system_prompt(tenant)
+
+    tenant_name = tenant.get("display_name") or tenant.get("name", "Centro")
+    proposed = await suggest_prompt_modification(current_prompt, req.instruction, tenant_name)
+
+    return {"proposed_prompt": proposed, "current_prompt": current_prompt}
+
+
+@router.post("/social/brand-prompt/apply")
+async def apply_brand_prompt_endpoint(
+    req: BrandPromptApplyRequest,
+    tenant: dict = Depends(get_tenant),
+):
+    """
+    Applica un prompt (da agente o manuale).
+    Rate limited: max 3 applicazioni/settimana.
+    is_initial=True salta il rate limit (setup iniziale).
+    """
+    if not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="Prompt vuoto")
+
+    result = apply_brand_prompt(
+        tenant_id=tenant["id"],
+        new_prompt=req.prompt,
+        instruction=req.instruction,
+        is_initial=req.is_initial,
+    )
+
+    if not result["ok"]:
+        raise HTTPException(status_code=429, detail=result["message"])
+
+    return result
