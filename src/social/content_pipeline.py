@@ -30,6 +30,10 @@ from src.social.gemini_social import (
     generate_image,
     generate_image_variants,
     generate_ai_graphic_post,
+    _get_rules_with_rotation,
+    _personalize_checklist_instructions,
+    _generate_caption_and_hashtags,
+    _get_brand_system_prompt,
 )
 
 logger = logging.getLogger("SOCIAL.pipeline")
@@ -295,8 +299,6 @@ async def create_manual_content(
     Max 1 contenuto manuale per settimana per tenant.
     """
     from datetime import date as date_type
-    from src.social.gemini_social import _get_rules_with_rotation
-
     week_start = date_type.fromisoformat(week_start_str)
     week_end = week_start + timedelta(days=6)
 
@@ -322,7 +324,8 @@ async def create_manual_content(
     sb = get_supabase()
     tenant_res = (
         sb.table("tenants")
-        .select("id, name, display_name, social_profile")
+        .select("id, name, display_name, bio, logo_url, theme_primary_color, "
+                "theme_secondary_color, social_profile")
         .eq("id", tenant_id)
         .maybe_single()
         .execute()
@@ -332,7 +335,24 @@ async def create_manual_content(
     platforms = social_profile.get("platforms", ["instagram", "facebook"])
     platform_value = "both" if len(platforms) > 1 else (platforms[0] if platforms else "both")
 
+    # Archetype via rotazione (stesso algoritmo del piano settimanale)
     rules = await _get_rules_with_rotation(service_name, service_id, tenant_id)
+    brand_system_prompt = _get_brand_system_prompt(tenant)
+
+    # Istruzioni foto personalizzate da Gemini
+    checklist = await _personalize_checklist_instructions(
+        service_name=service_name,
+        archetype=rules["archetype"],
+        base_checklist=rules["checklist"],
+        system_prompt=brand_system_prompt,
+    )
+
+    # Caption e hashtag iniziali da Gemini
+    caption, hashtags = await _generate_caption_and_hashtags(
+        service_name=service_name,
+        archetype=rules["archetype"],
+        system_prompt=brand_system_prompt,
+    )
 
     record = {
         "tenant_id": tenant_id,
@@ -344,7 +364,9 @@ async def create_manual_content(
         "platform": platform_value,
         "content_type": "post",
         "archetype": rules["archetype"],
-        "material_checklist": rules["checklist"],
+        "material_checklist": checklist,
+        "caption_text": caption,
+        "hashtags": hashtags,
         "status": "waiting_material",
         "is_manual": True,
         "photos_input": [],
