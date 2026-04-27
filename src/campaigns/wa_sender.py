@@ -29,7 +29,7 @@ async def send_whatsapp_message(phone: str, message: str, tenant_id: str) -> dic
             resp = await client.post(
                 f"{wa_bot_url}/send",
                 headers={"X-API-Key": wa_api_key},
-                json={"phone": phone, "message": message, "tenantId": tenant_id},
+                json={"phone": phone.lstrip("+"), "message": message, "tenantId": tenant_id},
             )
             resp.raise_for_status()
             return {"ok": True}
