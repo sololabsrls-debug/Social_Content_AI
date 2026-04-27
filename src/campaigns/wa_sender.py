@@ -9,22 +9,20 @@ import httpx
 
 logger = logging.getLogger("CAMPAIGNS.wa_sender")
 
-WA_BOT_URL = os.getenv("WA_BOT_URL", "")
-
-
 async def send_whatsapp_message(phone: str, message: str, tenant_id: str) -> dict:
     """
     Send a single WhatsApp message via the Baileys bot.
     Returns {"ok": True} or {"ok": False, "error": "..."}.
     """
-    if not WA_BOT_URL:
+    wa_bot_url = os.getenv("WA_BOT_URL", "")
+    if not wa_bot_url:
         logger.error("WA_BOT_URL not configured")
         return {"ok": False, "error": "WA_BOT_URL not configured"}
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
-                f"{WA_BOT_URL}/send",
+                f"{wa_bot_url}/send",
                 json={"phone": phone, "message": message, "tenant_id": tenant_id},
             )
             resp.raise_for_status()

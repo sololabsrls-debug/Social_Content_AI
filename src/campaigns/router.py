@@ -39,7 +39,10 @@ async def campaign_chat(
             "status": "analyzing",
             "chat_history": [m.model_dump() for m in req.messages],
         }).execute()
-        campaign_id = res.data[0]["id"] if res.data else str(uuid.uuid4())
+        if not res.data:
+            logger.error("Failed to create campaign record for tenant %s", tenant_id)
+            raise HTTPException(status_code=500, detail="Impossibile creare la campagna")
+        campaign_id = res.data[0]["id"]
 
     messages = [m.model_dump() for m in req.messages]
 
