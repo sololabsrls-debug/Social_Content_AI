@@ -5,6 +5,7 @@ Results are capped to avoid overwhelming Claude's context.
 """
 
 import logging
+from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
 from typing import Any, Optional
 
@@ -66,7 +67,6 @@ def get_clients_by_service(
     )
     rows = appts.data or []
     service_lower = service_name.lower()
-    from collections import Counter
     counts: Counter = Counter()
     for r in rows:
         svc = r.get("service") or {}
@@ -211,6 +211,7 @@ def get_clients_by_tag(tenant_id: str, tag_name: str) -> list[dict]:
         sb.table("client_tag_links")
         .select("client_id")
         .eq("tag_id", tag_id)
+        # tag_id already scoped to tenant; client_tag_links has no tenant_id column
         .execute()
     )
     client_ids = [r["client_id"] for r in (links.data or [])]
@@ -237,7 +238,6 @@ def get_clients_never_returned(tenant_id: str, after_first_visit_days: int = 60)
         .in_("status", ["confirmed", "completed"])
         .execute()
     )
-    from collections import Counter
     counts: Counter = Counter(
         r["client_id"] for r in (res.data or []) if r.get("client_id")
     )
@@ -296,6 +296,7 @@ def get_appointments_by_service(
         .eq("tenant_id", tenant_id)
         .gte("start_at", cutoff)
         .in_("status", ["confirmed", "completed"])
+        .limit(2000)
         .execute()
     )
     service_lower = service_name.lower()
@@ -318,7 +319,6 @@ def get_busiest_services(tenant_id: str, months_back: int = 3, limit: int = 5) -
         .in_("status", ["confirmed", "completed"])
         .execute()
     )
-    from collections import Counter
     counts: Counter = Counter(
         (r.get("service") or {}).get("name")
         for r in (res.data or [])
@@ -396,7 +396,6 @@ def get_client_retention_rate(tenant_id: str, months_back: int = 6) -> dict:
         .in_("status", ["confirmed", "completed"])
         .execute()
     )
-    from collections import Counter
     counts: Counter = Counter(
         r["client_id"] for r in (res.data or []) if r.get("client_id")
     )
@@ -427,7 +426,6 @@ def get_avg_days_between_visits(
     if service_name:
         svc_lower = service_name.lower()
         rows = [r for r in rows if svc_lower in ((r.get("service") or {}).get("name") or "").lower()]
-    from collections import defaultdict
     by_client: dict[str, list[str]] = defaultdict(list)
     for r in rows:
         if r.get("client_id") and r.get("start_at"):
@@ -471,10 +469,11 @@ def get_tenant_profile(tenant_id: str) -> dict:
         sb.table("tenants")
         .select("id, name, display_name, bio, logo_url, social_profile")
         .eq("id", tenant_id)
-        .single()
+        .limit(1)
         .execute()
     )
-    return res.data or {}
+    data = res.data or []
+    return data[0] if data else {}
 
 
 def get_opening_hours(tenant_id: str) -> list[dict]:
