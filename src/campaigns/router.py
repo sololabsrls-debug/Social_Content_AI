@@ -1,6 +1,6 @@
 import json
 import logging
-import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from src.campaigns.agent import run_campaign_agent
 from src.campaigns.models import CampaignChatRequest
+from src.campaigns.wa_sender import send_whatsapp_message
 from src.social.supabase_queries import get_tenant_by_api_key
 from src.supabase_client import get_supabase
 
@@ -78,6 +79,51 @@ async def list_campaigns(tenant: dict = Depends(get_tenant)):
         .execute()
     )
     return {"data": res.data or []}
+
+
+@router.post("/{campaign_id}/send")
+async def send_campaign(campaign_id: str, tenant: dict = Depends(get_tenant)):
+    """Send the campaign WhatsApp message to all target recipients."""
+    sb = get_supabase()
+    res = (
+        sb.table("wa_campaigns")
+        .select("message_text, target_summary, status")
+        .eq("id", campaign_id)
+        .eq("tenant_id", tenant["id"])
+        .limit(1)
+        .execute()
+    )
+    rows = res.data or []
+    if not rows:
+        raise HTTPException(status_code=404, detail="Campagna non trovata")
+    campaign = rows[0]
+
+    message_text = campaign.get("message_text")
+    if not message_text:
+        raise HTTPException(status_code=400, detail="Messaggio campagna non impostato")
+
+    target_summary = campaign.get("target_summary") or {}
+    client_phones: list[str] = target_summary.get("client_phones") or []
+    if not client_phones:
+        raise HTTPException(status_code=400, detail="Nessun destinatario trovato — rianalizza la campagna")
+
+    sent = 0
+    failed = 0
+    for phone in client_phones:
+        result = await send_whatsapp_message(phone, message_text, tenant["id"])
+        if result.get("ok"):
+            sent += 1
+        else:
+            failed += 1
+            logger.warning("WA send failed to %s: %s", phone, result.get("error"))
+
+    sb.table("wa_campaigns").update({
+        "status": "sent",
+        "sent_at": datetime.now(timezone.utc).isoformat(),
+        "recipients_count": sent,
+    }).eq("id", campaign_id).execute()
+
+    return {"sent": sent, "failed": failed, "total": len(client_phones)}
 
 
 @router.get("/{campaign_id}")

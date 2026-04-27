@@ -100,6 +100,13 @@ async def run_campaign_agent(
 
     canvas_state: dict[str, Any] = {}
     final_target_count = 0
+    target_client_phones: list[str] = []
+
+    _client_tools = {
+        "get_clients_by_service", "get_inactive_clients", "get_clients_reachable_wa",
+        "get_clients_by_ltv", "get_clients_with_birthday", "get_clients_by_tag",
+        "get_clients_never_returned",
+    }
 
     # Emit objective from the last user message immediately
     last_user_text = next(
@@ -168,6 +175,12 @@ async def run_campaign_agent(
 
                 result = await execute_tool(tc.name, tc.input, tenant_id)
 
+                # Track phone numbers from client tool results for sending
+                if tc.name in _client_tools and isinstance(result, list):
+                    target_client_phones = [
+                        c["whatsapp_phone"] for c in result if c.get("whatsapp_phone")
+                    ]
+
                 canvas_update = derive_canvas_update(tc.name, result)
                 if canvas_update:
                     canvas_state[canvas_update["block"]] = {
@@ -226,7 +239,7 @@ async def run_campaign_agent(
                 }
 
             if campaign_id:
-                await _save_campaign(campaign_id, canvas_state, claude_messages)
+                await _save_campaign(campaign_id, canvas_state, claude_messages, target_client_phones)
 
             yield "done", {"campaign_id": campaign_id or ""}
             return
@@ -237,7 +250,12 @@ async def run_campaign_agent(
     yield "done", {"campaign_id": campaign_id or "", "aborted": True, "reason": "iteration_limit"}
 
 
-async def _save_campaign(campaign_id: str, canvas_state: dict, messages: list) -> None:
+async def _save_campaign(
+    campaign_id: str,
+    canvas_state: dict,
+    messages: list,
+    client_phones: list[str],
+) -> None:
     try:
         sb = get_supabase()
         updates: dict[str, Any] = {
@@ -245,7 +263,10 @@ async def _save_campaign(campaign_id: str, canvas_state: dict, messages: list) -
             "chat_history": messages,
         }
         if "target" in canvas_state:
-            updates["target_summary"] = canvas_state["target"].get("data")
+            target_data = dict(canvas_state["target"].get("data", {}))
+            if client_phones:
+                target_data["client_phones"] = client_phones
+            updates["target_summary"] = target_data
         if "message" in canvas_state:
             updates["message_text"] = canvas_state["message"].get("data", {}).get("text")
         if "reason" in canvas_state:
