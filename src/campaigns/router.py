@@ -35,8 +35,10 @@ async def campaign_chat(
     tenant_id = tenant["id"]
 
     campaign_id = req.campaign_id
+    sb = get_supabase()
+    initial_target_count = 0
+
     if not campaign_id:
-        sb = get_supabase()
         res = sb.table("wa_campaigns").insert({
             "tenant_id": tenant_id,
             "status": "analyzing",
@@ -46,12 +48,25 @@ async def campaign_chat(
             logger.error("Failed to create campaign record for tenant %s", tenant_id)
             raise HTTPException(status_code=500, detail="Impossibile creare la campagna")
         campaign_id = res.data[0]["id"]
+    else:
+        existing = (
+            sb.table("wa_campaigns")
+            .select("target_summary")
+            .eq("id", campaign_id)
+            .eq("tenant_id", tenant_id)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            ts = existing.data[0].get("target_summary") or {}
+            phones = ts.get("client_phones") or []
+            initial_target_count = ts.get("count") or len(phones)
 
     messages = [m.model_dump() for m in req.messages]
 
     async def stream():
         try:
-            async for event_type, data in run_campaign_agent(messages, tenant_id, campaign_id):
+            async for event_type, data in run_campaign_agent(messages, tenant_id, campaign_id, initial_target_count):
                 payload = json.dumps(data, default=str)
                 yield f"event: {event_type}\ndata: {payload}\n\n"
         except Exception as exc:

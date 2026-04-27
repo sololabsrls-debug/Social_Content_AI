@@ -89,6 +89,7 @@ async def run_campaign_agent(
     messages: list[dict],
     tenant_id: str,
     campaign_id: Optional[str],
+    initial_target_count: int = 0,
 ) -> AsyncGenerator[tuple[str, dict], None]:
     """
     Runs the Claude tool_use loop and yields (event_type, data) tuples.
@@ -247,6 +248,9 @@ async def run_campaign_agent(
 
             canvas_state["creative"] = {"state": "ready", "data": {}}
             yield "canvas_update", {"block": "creative", "state": "ready", "data": {}}
+
+            if final_target_count == 0 and initial_target_count > 0:
+                final_target_count = initial_target_count
 
             if final_target_count > 0:
                 send_data = {"recipients": final_target_count, "wa_connected": True}
