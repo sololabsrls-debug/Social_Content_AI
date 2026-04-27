@@ -121,6 +121,11 @@ async def run_campaign_agent(
             "data": {"text": last_user_text},
         }
 
+    # Show creative block immediately so "Genera grafica" is always visible
+    if "creative" not in canvas_state:
+        canvas_state["creative"] = {"state": "ready", "data": {}}
+        yield "canvas_update", {"block": "creative", "state": "ready", "data": {}}
+
     for _ in range(12):  # safety limit on tool loops
         yield "thinking", {"text": "Elaboro la risposta..."}
 
