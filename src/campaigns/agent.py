@@ -8,7 +8,6 @@ import asyncio
 import json
 import logging
 import os
-import re
 from typing import Any, AsyncGenerator, Optional
 
 import anthropic
@@ -20,11 +19,10 @@ logger = logging.getLogger("CAMPAIGNS.agent")
 
 SYSTEM_PROMPT = """Sei un assistente marketing esperto per centri estetici. Aiuti l'estetista a creare campagne WhatsApp efficaci e mirate.
 
-Quando ricevi un obiettivo di marketing:
-1. Usa i tool disponibili per analizzare i dati reali del centro (clienti, appuntamenti, servizi)
-2. Identifica il target giusto con motivazioni concrete
-3. Proponi un messaggio WhatsApp persuasivo e personalizzato con {{nome}} come variabile
-4. Spiega le tue scelte in modo semplice, diretto e non tecnico
+Flusso di lavoro obbligatorio:
+1. Usa i tool di analisi per capire i dati reali del centro (clienti, appuntamenti, servizi)
+2. Quando hai finito l'analisi, chiama SEMPRE il tool propose_campaign con il motivo del target e il messaggio WhatsApp
+3. Dopo che propose_campaign ha risposto, spiega brevemente la proposta all'estetista in chat e chiedi se vuole modifiche
 
 Regole importanti:
 - Parla sempre in italiano
@@ -32,27 +30,12 @@ Regole importanti:
 - Non suggerire mai l'invio senza che l'estetista approvi esplicitamente
 - Fai poche domande, solo se strettamente necessarie per migliorare la campagna
 - Usa un tono caldo e professionale, mai freddo o robotico
-- Non usare MAI asterischi (*), trattini (-), grassetto, corsivo o altri simboli markdown nelle risposte. Usa le virgole al posto dei trattini come separatori
-- Il messaggio WhatsApp proposto deve essere pronto per l'invio, non un template astratto
-
-Formato output obbligatorio quando proponi un messaggio WhatsApp:
-Prima spiega brevemente il ragionamento (2-3 frasi senza markdown).
-Poi scrivi esattamente la parola MESSAGGIO: su una riga separata (senza asterischi, senza grassetto).
-Poi scrivi il messaggio WhatsApp (con {{nome}} come segnaposto per il nome cliente).
-Poi chiedi se vuole modificare tono o contenuto.
-
-Esempio corretto:
-Ho trovato 12 clienti che non vengono da più di 3 mesi, tutte raggiungibili su WhatsApp. Questa campagna punta sulla nostalgia e un piccolo vantaggio esclusivo per invogliarle a tornare.
-
-MESSAGGIO:
-Ciao {{nome}}! Ci manchi tantissimo al nostro centro. Vieni a trovarci questa settimana e ti riserviamo uno sconto speciale del 15% su qualsiasi trattamento. Ti aspettiamo!"""
+- Non usare MAI asterischi (*), trattini (-), grassetto, corsivo o altri simboli markdown. Usa le virgole al posto dei trattini
+- Il messaggio WhatsApp in propose_campaign deve essere pronto per l'invio con {{nome}} come segnaposto per il nome cliente"""
 
 
 def derive_canvas_update(tool_name: str, result: Any) -> Optional[dict]:
-    """
-    Derives a canvas block update from a tool result.
-    Returns None if the tool result doesn't map to a canvas block.
-    """
+    """Derives a canvas block update from a tool result."""
     client_tools = {
         "get_clients_by_service",
         "get_inactive_clients",
@@ -87,36 +70,6 @@ def derive_canvas_update(tool_name: str, result: Any) -> Optional[dict]:
         }
 
     return None
-
-
-# Matches MESSAGGIO: with optional surrounding markdown asterisks and optional "WHATSAPP" word
-_MESSAGGIO_RE = re.compile(r'\*{0,2}MESSAGGIO(?:\s+WHATSAPP)?\*{0,2}\s*:\s*\*{0,2}', re.IGNORECASE)
-
-
-def _extract_message_and_reason(full_text: str) -> tuple[Optional[str], Optional[str]]:
-    """
-    Splits Claude's response into (reason_text, wa_message_text).
-    Looks for the MESSAGGIO: marker (tolerates markdown bold wrapping).
-    Falls back to {{nome}} detection.
-    """
-    match = _MESSAGGIO_RE.search(full_text)
-    if match:
-        reason = full_text[:match.start()].strip() or None
-        after_marker = full_text[match.end():].strip()
-        # Take lines until first blank line (post-message commentary)
-        wa_lines: list[str] = []
-        for line in after_marker.splitlines():
-            if not line.strip() and wa_lines:
-                break
-            wa_lines.append(line)
-        wa_message = "\n".join(wa_lines).strip() or None
-        return reason, wa_message
-
-    # Fallback: if {{nome}} appears anywhere, treat whole text as message
-    if "{{nome}}" in full_text:
-        return None, full_text
-
-    return None, None
 
 
 async def execute_tool(tool_name: str, tool_input: dict, tenant_id: str) -> Any:
@@ -160,7 +113,7 @@ async def run_campaign_agent(
             "data": {"text": last_user_text},
         }
 
-    for _ in range(10):  # safety limit on tool loops
+    for _ in range(12):  # safety limit on tool loops
         yield "thinking", {"text": "Elaboro la risposta..."}
 
         response = await client.messages.create(
@@ -183,6 +136,34 @@ async def run_campaign_agent(
         if tool_calls:
             tool_results = []
             for tc in tool_calls:
+                # propose_campaign: extract structured fields directly — no text parsing
+                if tc.name == "propose_campaign":
+                    reason_text = tc.input.get("target_reason", "")
+                    wa_message = tc.input.get("wa_message", "")
+
+                    if reason_text:
+                        canvas_state["reason"] = {"state": "ready", "data": {"text": reason_text}}
+                        yield "canvas_update", {
+                            "block": "reason",
+                            "state": "ready",
+                            "data": {"text": reason_text},
+                        }
+
+                    if wa_message:
+                        canvas_state["message"] = {"state": "ready", "data": {"text": wa_message}}
+                        yield "canvas_update", {
+                            "block": "message",
+                            "state": "ready",
+                            "data": {"text": wa_message},
+                        }
+
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": tc.id,
+                        "content": json.dumps({"status": "ok"}),
+                    })
+                    continue
+
                 yield "tool_call", {"tool": tc.name, "params": tc.input}
 
                 result = await execute_tool(tc.name, tc.input, tenant_id)
@@ -215,24 +196,6 @@ async def run_campaign_agent(
             full_text = "\n".join(text_parts)
             yield "message", {"role": "assistant", "text": full_text}
 
-            reason_text, wa_message = _extract_message_and_reason(full_text)
-
-            if reason_text:
-                canvas_state["reason"] = {"state": "ready", "data": {"text": reason_text}}
-                yield "canvas_update", {
-                    "block": "reason",
-                    "state": "ready",
-                    "data": {"text": reason_text},
-                }
-
-            if wa_message:
-                canvas_state["message"] = {"state": "ready", "data": {"text": wa_message}}
-                yield "canvas_update", {
-                    "block": "message",
-                    "state": "ready",
-                    "data": {"text": wa_message},
-                }
-
         if response.stop_reason == "end_turn":
             if "target" in canvas_state:
                 canvas_state["target"]["state"] = "ready"
@@ -242,7 +205,6 @@ async def run_campaign_agent(
                     "data": canvas_state["target"]["data"],
                 }
 
-            # Creative block: always mark ready so the user sees the "Genera grafica" option
             canvas_state["creative"] = {"state": "ready", "data": {}}
             yield "canvas_update", {"block": "creative", "state": "ready", "data": {}}
 
@@ -255,7 +217,6 @@ async def run_campaign_agent(
                     "data": send_data,
                 }
 
-            # Mark objective as ready
             if "objective" in canvas_state:
                 canvas_state["objective"]["state"] = "ready"
                 yield "canvas_update", {

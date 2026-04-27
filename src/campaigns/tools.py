@@ -705,6 +705,35 @@ TOOL_SCHEMAS: list[dict] = [
         "description": "Lista del personale del centro.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
+    {
+        "name": "propose_campaign",
+        "description": (
+            "Chiama OBBLIGATORIAMENTE questo tool quando hai finito l'analisi e sei pronto "
+            "a proporre la campagna. Passa il motivo del target e il messaggio WhatsApp già "
+            "scritto e pronto per l'invio."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "target_reason": {
+                    "type": "string",
+                    "description": (
+                        "Spiegazione in 2-3 frasi del perché questo target è stato scelto "
+                        "e perché la campagna avrà successo. Senza asterischi o trattini."
+                    ),
+                },
+                "wa_message": {
+                    "type": "string",
+                    "description": (
+                        "Il messaggio WhatsApp completo, pronto per l'invio. "
+                        "Usa {{nome}} come segnaposto per il nome cliente. "
+                        "Niente asterischi, niente trattini."
+                    ),
+                },
+            },
+            "required": ["target_reason", "wa_message"],
+        },
+    },
 ]
 
 # Map tool name → function for execute_tool in agent.py
@@ -731,4 +760,5 @@ TOOL_FUNCTIONS: dict[str, Any] = {
     "get_tenant_profile": get_tenant_profile,
     "get_opening_hours": get_opening_hours,
     "get_staff_list": get_staff_list,
+    "propose_campaign": lambda tenant_id, **_: {"status": "ok"},
 }
