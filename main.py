@@ -58,6 +58,9 @@ app.add_middleware(
 from src.social.router import router as social_router
 app.include_router(social_router)
 
+from src.campaigns.router import router as campaigns_router
+app.include_router(campaigns_router)
+
 
 @app.get("/health")
 async def health():
