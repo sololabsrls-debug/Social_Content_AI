@@ -1063,8 +1063,28 @@ async def select_and_plan_week(
         logger.info("Nessun appuntamento candidato per questa settimana")
         return []
 
-    # Limita al content_frequency
-    candidati = candidati[:content_frequency]
+    # Distribuisce i candidati su giorni diversi prima di limitare al content_frequency.
+    # Senza questo, con molti appuntamenti tutti il lunedì il [:content_frequency]
+    # prenderebbe solo lunedì anche se ci sono appuntamenti in altri giorni.
+    from collections import defaultdict as _dd
+    _per_giorno: dict[str, list] = _dd(list)
+    for c in candidati:
+        _per_giorno[c["giorno"]].append(c)
+    _distribuiti: list = []
+    _giorni = list(_per_giorno.keys())  # già ordinati perché appointments è ASC
+    _idx = 0
+    while len(_distribuiti) < content_frequency:
+        _added = False
+        for g in _giorni:
+            if len(_distribuiti) >= content_frequency:
+                break
+            if _idx < len(_per_giorno[g]):
+                _distribuiti.append(_per_giorno[g][_idx])
+                _added = True
+        if not _added:
+            break
+        _idx += 1
+    candidati = _distribuiti
 
     # Assembla il system prompt del brand una volta sola
     brand_system_prompt = _get_brand_system_prompt(tenant)
