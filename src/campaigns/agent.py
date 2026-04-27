@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from typing import Any, AsyncGenerator, Optional
 
 import anthropic
@@ -31,20 +32,20 @@ Regole importanti:
 - Non suggerire mai l'invio senza che l'estetista approvi esplicitamente
 - Fai poche domande, solo se strettamente necessarie per migliorare la campagna
 - Usa un tono caldo e professionale, mai freddo o robotico
-- Non usare trattini come separatori nei messaggi
+- Non usare MAI asterischi (*), trattini (-), grassetto, corsivo o altri simboli markdown nelle risposte. Usa le virgole al posto dei trattini come separatori
 - Il messaggio WhatsApp proposto deve essere pronto per l'invio, non un template astratto
 
 Formato output obbligatorio quando proponi un messaggio WhatsApp:
-- Prima spiega brevemente il ragionamento (2-3 frasi)
-- Poi scrivi esattamente "MESSAGGIO:" su una riga separata
-- Poi scrivi il messaggio WhatsApp (con {{nome}} come segnaposto per il nome cliente)
-- Poi chiedi se vuole modificare tono o contenuto
+Prima spiega brevemente il ragionamento (2-3 frasi senza markdown).
+Poi scrivi esattamente la parola MESSAGGIO: su una riga separata (senza asterischi, senza grassetto).
+Poi scrivi il messaggio WhatsApp (con {{nome}} come segnaposto per il nome cliente).
+Poi chiedi se vuole modificare tono o contenuto.
 
-Esempio:
+Esempio corretto:
 Ho trovato 12 clienti che non vengono da più di 3 mesi, tutte raggiungibili su WhatsApp. Questa campagna punta sulla nostalgia e un piccolo vantaggio esclusivo per invogliarle a tornare.
 
 MESSAGGIO:
-Ciao {{nome}}! 😊 Ci manchi tantissimo al nostro centro. Vieni a trovarci questa settimana e ti riserviamo uno sconto speciale del 15% su qualsiasi trattamento. Ti aspettiamo! 💆‍♀️"""
+Ciao {{nome}}! Ci manchi tantissimo al nostro centro. Vieni a trovarci questa settimana e ti riserviamo uno sconto speciale del 15% su qualsiasi trattamento. Ti aspettiamo!"""
 
 
 def derive_canvas_update(tool_name: str, result: Any) -> Optional[dict]:
@@ -88,18 +89,22 @@ def derive_canvas_update(tool_name: str, result: Any) -> Optional[dict]:
     return None
 
 
+# Matches MESSAGGIO: with optional surrounding markdown asterisks and optional "WHATSAPP" word
+_MESSAGGIO_RE = re.compile(r'\*{0,2}MESSAGGIO(?:\s+WHATSAPP)?\*{0,2}\s*:\s*\*{0,2}', re.IGNORECASE)
+
+
 def _extract_message_and_reason(full_text: str) -> tuple[Optional[str], Optional[str]]:
     """
     Splits Claude's response into (reason_text, wa_message_text).
-    Looks for the 'MESSAGGIO:' marker. Falls back to {{nome}} detection.
+    Looks for the MESSAGGIO: marker (tolerates markdown bold wrapping).
+    Falls back to {{nome}} detection.
     """
-    if "MESSAGGIO:" in full_text:
-        parts = full_text.split("MESSAGGIO:", 1)
-        reason = parts[0].strip() or None
-        # The WA message is everything after the marker until the next blank-line paragraph
-        after_marker = parts[1].strip()
-        # Take until we hit a blank line that signals the post-message commentary
-        wa_lines = []
+    match = _MESSAGGIO_RE.search(full_text)
+    if match:
+        reason = full_text[:match.start()].strip() or None
+        after_marker = full_text[match.end():].strip()
+        # Take lines until first blank line (post-message commentary)
+        wa_lines: list[str] = []
         for line in after_marker.splitlines():
             if not line.strip() and wa_lines:
                 break
@@ -107,7 +112,7 @@ def _extract_message_and_reason(full_text: str) -> tuple[Optional[str], Optional
         wa_message = "\n".join(wa_lines).strip() or None
         return reason, wa_message
 
-    # Fallback: if {{nome}} appears anywhere, treat whole text as message (old behavior)
+    # Fallback: if {{nome}} appears anywhere, treat whole text as message
     if "{{nome}}" in full_text:
         return None, full_text
 
@@ -237,15 +242,17 @@ async def run_campaign_agent(
                     "data": canvas_state["target"]["data"],
                 }
 
+            # Creative block: always mark ready so the user sees the "Genera grafica" option
+            canvas_state["creative"] = {"state": "ready", "data": {}}
+            yield "canvas_update", {"block": "creative", "state": "ready", "data": {}}
+
             if final_target_count > 0:
-                canvas_state["send"] = {
-                    "state": "ready",
-                    "data": {"recipients": final_target_count},
-                }
+                send_data = {"recipients": final_target_count, "wa_connected": True}
+                canvas_state["send"] = {"state": "ready", "data": send_data}
                 yield "canvas_update", {
                     "block": "send",
                     "state": "ready",
-                    "data": {"recipients": final_target_count},
+                    "data": send_data,
                 }
 
             # Mark objective as ready
