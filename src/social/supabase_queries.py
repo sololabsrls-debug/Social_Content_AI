@@ -125,6 +125,37 @@ def get_social_content_list(
     return res.data or []
 
 
+def get_appointment_with_service(appointment_id: str, tenant_id: str) -> Optional[dict]:
+    """Singolo appuntamento con dati servizio — usato per creazione contenuto manuale."""
+    sb = get_supabase()
+    res = (
+        sb.table("appointments")
+        .select(
+            "id, start_at, tenant_id, "
+            "service:services(id, name, descrizione_breve, benefici, prodotti_utilizzati, duration_min)"
+        )
+        .eq("id", appointment_id)
+        .eq("tenant_id", tenant_id)
+        .maybe_single()
+        .execute()
+    )
+    return res.data
+
+
+def get_manual_content_count(tenant_id: str, week_start: date) -> int:
+    """Conta contenuti manuali esistenti per la settimana."""
+    sb = get_supabase()
+    res = (
+        sb.table("social_content")
+        .select("id", count="exact")
+        .eq("tenant_id", tenant_id)
+        .eq("week_start", week_start.isoformat())
+        .eq("is_manual", True)
+        .execute()
+    )
+    return res.count or 0
+
+
 def update_social_content(content_id: str, data: dict) -> dict:
     """Aggiorna campi di un record social_content."""
     sb = get_supabase()

@@ -21,6 +21,8 @@ from src.social.supabase_queries import (
     create_social_content,
     get_social_content_by_id,
     update_social_content,
+    get_appointment_with_service,
+    get_manual_content_count,
 )
 from src.social.gemini_social import (
     select_and_plan_week,
@@ -280,6 +282,81 @@ async def run_weekly_pipeline(tenant_id: str, week_start_override: str | None = 
         "week_start": str(week_start),
         "records_created": records_created,
     }
+
+
+async def create_manual_content(
+    tenant_id: str,
+    appointment_id: str,
+    week_start_str: str,
+) -> dict:
+    """
+    Crea un singolo contenuto manuale per un appuntamento scelto dall'estetista.
+    Usa la stessa logica di rotazione archetype della pipeline settimanale.
+    Max 1 contenuto manuale per settimana per tenant.
+    """
+    from datetime import date as date_type
+    from src.social.gemini_social import _get_rules_with_rotation
+
+    week_start = date_type.fromisoformat(week_start_str)
+    week_end = week_start + timedelta(days=6)
+
+    count = get_manual_content_count(tenant_id, week_start)
+    if count >= 1:
+        raise ValueError("Hai già aggiunto un contenuto manuale questa settimana")
+
+    appt = get_appointment_with_service(appointment_id, tenant_id)
+    if not appt:
+        raise ValueError("Appuntamento non trovato")
+
+    service = appt.get("service") or {}
+    service_id = service.get("id")
+    service_name = service.get("name", "Trattamento")
+
+    scheduled_date_str = (appt.get("start_at") or "")[:10]
+    scheduled_date = (
+        date_type.fromisoformat(scheduled_date_str)
+        if scheduled_date_str
+        else week_start
+    )
+
+    sb = get_supabase()
+    tenant_res = (
+        sb.table("tenants")
+        .select("id, name, display_name, social_profile")
+        .eq("id", tenant_id)
+        .maybe_single()
+        .execute()
+    )
+    tenant = tenant_res.data or {}
+    social_profile = tenant.get("social_profile") or {}
+    platforms = social_profile.get("platforms", ["instagram", "facebook"])
+    platform_value = "both" if len(platforms) > 1 else (platforms[0] if platforms else "both")
+
+    rules = await _get_rules_with_rotation(service_name, service_id, tenant_id)
+
+    record = {
+        "tenant_id": tenant_id,
+        "appointment_id": appointment_id,
+        "service_id": service_id,
+        "week_start": str(week_start),
+        "week_end": str(week_end),
+        "scheduled_date": str(scheduled_date),
+        "platform": platform_value,
+        "content_type": "post",
+        "archetype": rules["archetype"],
+        "material_checklist": rules["checklist"],
+        "status": "waiting_material",
+        "is_manual": True,
+        "photos_input": [],
+        "client_consent": "details_only",
+    }
+
+    created = create_social_content(record)
+    logger.info(
+        f"Contenuto manuale creato: tenant={tenant_id} appt={appointment_id} "
+        f"archetype={rules['archetype']} content_id={created.get('id')}"
+    )
+    return created
 
 
 async def run_all_tenants() -> list[dict]:

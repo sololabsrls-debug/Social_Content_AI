@@ -123,6 +123,31 @@ async def list_content(
     return {"data": contents, "count": len(contents)}
 
 
+class ManualContentRequest(BaseModel):
+    appointment_id: str
+    week_start: str
+
+
+@router.post("/social/content/manual")
+async def create_manual_content_endpoint(
+    req: ManualContentRequest,
+    tenant: dict = Depends(get_tenant),
+):
+    """Crea un contenuto manuale per un appuntamento specifico. Max 1 per settimana."""
+    try:
+        from src.social.content_pipeline import create_manual_content
+        content = await create_manual_content(
+            tenant_id=tenant["id"],
+            appointment_id=req.appointment_id,
+            week_start_str=req.week_start,
+        )
+        if not content.get("id"):
+            raise HTTPException(status_code=500, detail="Errore creazione contenuto")
+        return {"message": "Contenuto manuale creato", "content_id": content["id"]}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.get("/social/content/{content_id}")
 async def get_content(
     content_id: str,
