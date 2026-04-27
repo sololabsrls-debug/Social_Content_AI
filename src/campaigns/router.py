@@ -1,3 +1,4 @@
+import io
 import json
 import logging
 from datetime import datetime, timezone
@@ -9,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from src.campaigns.agent import run_campaign_agent
 from src.campaigns.models import CampaignChatRequest
 from src.campaigns.wa_sender import send_whatsapp_message
+from src.social.gemini_social import generate_image
 from src.social.supabase_queries import get_tenant_by_api_key
 from src.supabase_client import get_supabase
 
@@ -124,6 +126,76 @@ async def send_campaign(campaign_id: str, tenant: dict = Depends(get_tenant)):
     }).eq("id", campaign_id).execute()
 
     return {"sent": sent, "failed": failed, "total": len(client_phones)}
+
+
+@router.post("/{campaign_id}/generate-image")
+async def generate_campaign_image(campaign_id: str, tenant: dict = Depends(get_tenant)):
+    """Generate a social graphic for the campaign using the existing Gemini pipeline."""
+    sb = get_supabase()
+    res = (
+        sb.table("wa_campaigns")
+        .select("message_text, reason_text, target_summary")
+        .eq("id", campaign_id)
+        .eq("tenant_id", tenant["id"])
+        .limit(1)
+        .execute()
+    )
+    rows = res.data or []
+    if not rows:
+        raise HTTPException(status_code=404, detail="Campagna non trovata")
+    campaign = rows[0]
+
+    message_text = campaign.get("message_text") or ""
+    reason_text = campaign.get("reason_text") or ""
+    if not message_text:
+        raise HTTPException(status_code=400, detail="Messaggio campagna non impostato — genera prima la campagna")
+
+    center_name = tenant.get("display_name") or tenant.get("name", "Centro Estetico")
+    visual_brief = (
+        f"Professional marketing graphic for a beauty center WhatsApp campaign.\n"
+        f"Center: {center_name}\n"
+        f"Campaign goal: {reason_text or 'Re-engagement promotion'}\n"
+        f"Message theme: {message_text[:200]}\n"
+        f"Style: elegant, feminine, accessible luxury. No people visible. "
+        f"Focus on beauty products, spa atmosphere, or abstract elegance."
+    )
+
+    content_record = {
+        "id": campaign_id,
+        "photos_input": [],
+        "archetype": "editorial",
+        "visual_brief": visual_brief,
+        "visual_brief_override": None,
+        "client_consent": "no_client",
+        "service": {},
+        "service_name": "",
+    }
+
+    feed_bytes, _ = await generate_image(content_record, tenant)
+    if not feed_bytes:
+        raise HTTPException(status_code=500, detail="Generazione grafica fallita — riprova")
+
+    image_path = f"{tenant['id']}/campaigns/{campaign_id}/cover.jpg"
+    try:
+        sb.storage.from_("social-media").upload(
+            path=image_path,
+            file=io.BytesIO(feed_bytes),
+            file_options={"content-type": "image/jpeg", "upsert": "true"},
+        )
+    except Exception:
+        sb.storage.from_("social-media").upload(
+            path=image_path,
+            file=feed_bytes,
+            file_options={"content-type": "image/jpeg", "upsert": "true"},
+        )
+
+    image_url = sb.storage.from_("social-media").get_public_url(image_path)
+
+    target_summary = campaign.get("target_summary") or {}
+    target_summary["image_url"] = image_url
+    sb.table("wa_campaigns").update({"target_summary": target_summary}).eq("id", campaign_id).execute()
+
+    return {"image_url": image_url}
 
 
 @router.get("/{campaign_id}")

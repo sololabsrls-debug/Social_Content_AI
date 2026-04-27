@@ -210,6 +210,33 @@ async def run_campaign_agent(
             yield "message", {"role": "assistant", "text": full_text}
 
         if response.stop_reason == "end_turn":
+            # If propose_campaign was never called, force one call so canvas always populates
+            if "message" not in canvas_state:
+                if text_parts:
+                    claude_messages.append({
+                        "role": "assistant",
+                        "content": [b.model_dump() for b in response.content],
+                    })
+                yield "thinking", {"text": "Preparo la proposta strutturata..."}
+                forced = await client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=1000,
+                    system=SYSTEM_PROMPT,
+                    tools=TOOL_SCHEMAS,
+                    tool_choice={"type": "tool", "name": "propose_campaign"},
+                    messages=claude_messages,
+                )
+                for block in forced.content:
+                    if block.type == "tool_use" and block.name == "propose_campaign":
+                        reason_text = block.input.get("target_reason", "")
+                        wa_message = block.input.get("wa_message", "")
+                        if reason_text:
+                            canvas_state["reason"] = {"state": "ready", "data": {"text": reason_text}}
+                            yield "canvas_update", {"block": "reason", "state": "ready", "data": {"text": reason_text}}
+                        if wa_message:
+                            canvas_state["message"] = {"state": "ready", "data": {"text": wa_message}}
+                            yield "canvas_update", {"block": "message", "state": "ready", "data": {"text": wa_message}}
+
             if "target" in canvas_state:
                 canvas_state["target"]["state"] = "ready"
                 yield "canvas_update", {
