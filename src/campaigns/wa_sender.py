@@ -19,11 +19,17 @@ async def send_whatsapp_message(phone: str, message: str, tenant_id: str) -> dic
         logger.error("WA_BOT_URL not configured")
         return {"ok": False, "error": "WA_BOT_URL not configured"}
 
+    wa_api_key = os.getenv("WA_BOT_API_KEY", "")
+    if not wa_api_key:
+        logger.error("WA_BOT_API_KEY not configured")
+        return {"ok": False, "error": "WA_BOT_API_KEY not configured"}
+
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
                 f"{wa_bot_url}/send",
-                json={"phone": phone, "message": message, "tenant_id": tenant_id},
+                headers={"X-API-Key": wa_api_key},
+                json={"phone": phone, "message": message, "tenantId": tenant_id},
             )
             resp.raise_for_status()
             return {"ok": True}
