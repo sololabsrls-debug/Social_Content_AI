@@ -4,6 +4,7 @@ Runs a tool_use loop and yields SSE-compatible (event_type, data) tuples.
 Saves campaign state to Supabase after each run.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -82,7 +83,7 @@ async def execute_tool(tool_name: str, tool_input: dict, tenant_id: str) -> Any:
         logger.warning("Unknown tool: %s", tool_name)
         return {"error": f"Tool {tool_name} not found"}
     try:
-        return fn(tenant_id=tenant_id, **tool_input)
+        return await asyncio.to_thread(fn, tenant_id=tenant_id, **tool_input)
     except Exception as exc:
         logger.error("Tool %s failed: %s", tool_name, exc)
         return {"error": str(exc)}
@@ -97,7 +98,7 @@ async def run_campaign_agent(
     Runs the Claude tool_use loop and yields (event_type, data) tuples.
     Event types: thinking | tool_call | canvas_update | message | done
     """
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
     claude_messages = [{"role": m["role"], "content": m["content"]} for m in messages]
 
@@ -105,7 +106,7 @@ async def run_campaign_agent(
     final_target_count = 0
 
     for _ in range(10):  # safety limit on tool loops
-        response = client.messages.create(
+        response = await client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=4096,
             system=SYSTEM_PROMPT,
@@ -147,7 +148,10 @@ async def run_campaign_agent(
                     "content": json.dumps(result, default=str),
                 })
 
-            claude_messages.append({"role": "assistant", "content": response.content})
+            claude_messages.append({
+                "role": "assistant",
+                "content": [b.model_dump() for b in response.content],
+            })
             claude_messages.append({"role": "user", "content": tool_results})
 
         if text_parts:
@@ -183,7 +187,7 @@ async def run_campaign_agent(
                 }
 
             if campaign_id:
-                _save_campaign(campaign_id, canvas_state, claude_messages)
+                await _save_campaign(campaign_id, canvas_state, claude_messages)
 
             yield "done", {"campaign_id": campaign_id or ""}
             return
@@ -191,10 +195,10 @@ async def run_campaign_agent(
         if response.stop_reason != "tool_use":
             break
 
-    yield "done", {"campaign_id": campaign_id or ""}
+    yield "done", {"campaign_id": campaign_id or "", "aborted": True, "reason": "iteration_limit"}
 
 
-def _save_campaign(campaign_id: str, canvas_state: dict, messages: list) -> None:
+async def _save_campaign(campaign_id: str, canvas_state: dict, messages: list) -> None:
     try:
         sb = get_supabase()
         updates: dict[str, Any] = {
@@ -207,6 +211,8 @@ def _save_campaign(campaign_id: str, canvas_state: dict, messages: list) -> None
             updates["message_text"] = canvas_state["message"].get("data", {}).get("text")
         if "reason" in canvas_state:
             updates["reason_text"] = canvas_state["reason"].get("data", {}).get("text")
-        sb.table("wa_campaigns").update(updates).eq("id", campaign_id).execute()
+        await asyncio.to_thread(
+            lambda: sb.table("wa_campaigns").update(updates).eq("id", campaign_id).execute()
+        )
     except Exception as exc:
         logger.error("Failed to save campaign %s: %s", campaign_id, exc)
