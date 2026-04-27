@@ -32,7 +32,19 @@ Regole importanti:
 - Fai poche domande, solo se strettamente necessarie per migliorare la campagna
 - Usa un tono caldo e professionale, mai freddo o robotico
 - Non usare trattini come separatori nei messaggi
-- Il messaggio WhatsApp proposto deve essere pronto per l'invio, non un template astratto"""
+- Il messaggio WhatsApp proposto deve essere pronto per l'invio, non un template astratto
+
+Formato output obbligatorio quando proponi un messaggio WhatsApp:
+- Prima spiega brevemente il ragionamento (2-3 frasi)
+- Poi scrivi esattamente "MESSAGGIO:" su una riga separata
+- Poi scrivi il messaggio WhatsApp (con {{nome}} come segnaposto per il nome cliente)
+- Poi chiedi se vuole modificare tono o contenuto
+
+Esempio:
+Ho trovato 12 clienti che non vengono da più di 3 mesi, tutte raggiungibili su WhatsApp. Questa campagna punta sulla nostalgia e un piccolo vantaggio esclusivo per invogliarle a tornare.
+
+MESSAGGIO:
+Ciao {{nome}}! 😊 Ci manchi tantissimo al nostro centro. Vieni a trovarci questa settimana e ti riserviamo uno sconto speciale del 15% su qualsiasi trattamento. Ti aspettiamo! 💆‍♀️"""
 
 
 def derive_canvas_update(tool_name: str, result: Any) -> Optional[dict]:
@@ -76,6 +88,32 @@ def derive_canvas_update(tool_name: str, result: Any) -> Optional[dict]:
     return None
 
 
+def _extract_message_and_reason(full_text: str) -> tuple[Optional[str], Optional[str]]:
+    """
+    Splits Claude's response into (reason_text, wa_message_text).
+    Looks for the 'MESSAGGIO:' marker. Falls back to {{nome}} detection.
+    """
+    if "MESSAGGIO:" in full_text:
+        parts = full_text.split("MESSAGGIO:", 1)
+        reason = parts[0].strip() or None
+        # The WA message is everything after the marker until the next blank-line paragraph
+        after_marker = parts[1].strip()
+        # Take until we hit a blank line that signals the post-message commentary
+        wa_lines = []
+        for line in after_marker.splitlines():
+            if not line.strip() and wa_lines:
+                break
+            wa_lines.append(line)
+        wa_message = "\n".join(wa_lines).strip() or None
+        return reason, wa_message
+
+    # Fallback: if {{nome}} appears anywhere, treat whole text as message (old behavior)
+    if "{{nome}}" in full_text:
+        return None, full_text
+
+    return None, None
+
+
 async def execute_tool(tool_name: str, tool_input: dict, tenant_id: str) -> Any:
     """Calls the appropriate tool function with tenant_id injected."""
     fn = TOOL_FUNCTIONS.get(tool_name)
@@ -105,7 +143,21 @@ async def run_campaign_agent(
     canvas_state: dict[str, Any] = {}
     final_target_count = 0
 
+    # Emit objective from the last user message immediately
+    last_user_text = next(
+        (m["content"] for m in reversed(messages) if m["role"] == "user"), ""
+    )
+    if last_user_text:
+        canvas_state["objective"] = {"state": "analyzing", "data": {"text": last_user_text}}
+        yield "canvas_update", {
+            "block": "objective",
+            "state": "analyzing",
+            "data": {"text": last_user_text},
+        }
+
     for _ in range(10):  # safety limit on tool loops
+        yield "thinking", {"text": "Elaboro la risposta..."}
+
         response = await client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=4096,
@@ -158,12 +210,22 @@ async def run_campaign_agent(
             full_text = "\n".join(text_parts)
             yield "message", {"role": "assistant", "text": full_text}
 
-            if "{{nome}}" in full_text or "Ciao {{" in full_text:
-                canvas_state["message"] = {"state": "ready", "data": {"text": full_text}}
+            reason_text, wa_message = _extract_message_and_reason(full_text)
+
+            if reason_text:
+                canvas_state["reason"] = {"state": "ready", "data": {"text": reason_text}}
+                yield "canvas_update", {
+                    "block": "reason",
+                    "state": "ready",
+                    "data": {"text": reason_text},
+                }
+
+            if wa_message:
+                canvas_state["message"] = {"state": "ready", "data": {"text": wa_message}}
                 yield "canvas_update", {
                     "block": "message",
                     "state": "ready",
-                    "data": {"text": full_text},
+                    "data": {"text": wa_message},
                 }
 
         if response.stop_reason == "end_turn":
@@ -184,6 +246,15 @@ async def run_campaign_agent(
                     "block": "send",
                     "state": "ready",
                     "data": {"recipients": final_target_count},
+                }
+
+            # Mark objective as ready
+            if "objective" in canvas_state:
+                canvas_state["objective"]["state"] = "ready"
+                yield "canvas_update", {
+                    "block": "objective",
+                    "state": "ready",
+                    "data": canvas_state["objective"]["data"],
                 }
 
             if campaign_id:
