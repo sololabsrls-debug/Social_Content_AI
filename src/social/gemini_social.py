@@ -1491,31 +1491,22 @@ def _extract_visual_identity_from_brand_prompt(prompt: str) -> str:
 def build_campaign_graphic_system_instruction(tenant: dict) -> str:
     sp = tenant.get("social_profile") or {}
     center_name = tenant.get("display_name") or tenant.get("name") or "Centro Estetico"
-    visual_style = sp.get("visual_style") or sp.get("style") or "minimal"
-    photo_style = sp.get("photo_style") or "bright_natural"
-    typography_style = sp.get("typography_style") or "serif_elegant"
     primary_color = tenant.get("theme_primary_color") or "#6b2d4e"
     secondary_color = tenant.get("theme_secondary_color") or "#c9a0b4"
     accent_color = sp.get("accent_color") or secondary_color
     background_color = sp.get("background_color") or "#fdf5f0"
-    visual_identity = _extract_visual_identity_from_brand_prompt(_get_brand_system_prompt(tenant))
+    visual_style = sp.get("visual_style") or sp.get("style") or "minimal"
+    photo_style = sp.get("photo_style") or "bright_natural"
+    typography_style = sp.get("typography_style") or "serif_elegant"
 
-    lines = [
-        f"Sei l'art director del centro estetico '{center_name}'.",
-        "Usa solo la brand identity visiva del centro, non le regole di copywriting.",
-        "Ignora CTA, caption, hashtag, slogan, offerte, prezzi e messaggi WhatsApp.",
-        f"Stile visivo: {visual_style}.",
-        f"Atmosfera fotografica: {photo_style}.",
-        f"Tipografia: {typography_style}.",
-        (
-            f"Palette: primario {primary_color}, secondario {secondary_color}, "
-            f"accento {accent_color}, sfondo {background_color}."
-        ),
-        "Per questa grafica il testo deve restare minimo e limitato solo a quello richiesto nel prompt finale.",
-    ]
-    if visual_identity:
-        lines.append(f"Riferimenti visivi del brand: {visual_identity}.")
-    return "\n".join(lines)
+    return (
+        f"You are a visual art director for the beauty salon '{center_name}'.\n"
+        f"Create a beautiful promotional graphic image — visual identity only, no copywriting rules.\n"
+        f"Visual style: {visual_style}. Photographic mood: {photo_style}. Typography: {typography_style}.\n"
+        f"Palette: primary {primary_color}, secondary {secondary_color}, "
+        f"accent {accent_color}, background {background_color}.\n"
+        f"CRITICAL: render ONLY the text explicitly listed in the prompt. Zero extra words."
+    )
 
 
 def _normalize_campaign_treatment_subject(raw_subject: str) -> str:
@@ -1546,12 +1537,25 @@ def _is_safe_treatment_subject(text: str) -> bool:
 
 def build_campaign_graphic_prompt(treatment_subject: str, center_name: str) -> str:
     return (
-        "Crea una grafica quadrata per una campagna WhatsApp di un centro estetico. "
-        f"Lo sfondo deve raccontare in modo elegante e pulito il trattamento '{treatment_subject}'. "
-        f"Inserisci solo questi due testi, '{treatment_subject}' e '{center_name}'. "
-        "Segui la brand identity del centro per colori, atmosfera e stile visivo. "
-        "Non trasformare il messaggio WhatsApp in testo grafico. "
-        "Nessun altro testo, nessuna CTA, nessun prezzo, nessun claim lungo, nessun watermark."
+        f"Create a square 1:1 promotional beauty graphic.\n\n"
+        f"The entire canvas must be one single continuous full-bleed image. "
+        f"There must be no separate header, footer, sidebar, caption area, label area, card, banner, stripe, "
+        f"solid block, flat rectangle, or monochrome area reserved for text.\n\n"
+        f"The text must be part of the same visual composition, overlaid directly on the photographic/atmospheric image. "
+        f"Do not place the text above the image, below the image, outside the image, or inside any separate graphic area.\n\n"
+        f"Reserve a natural empty space inside the image itself for typography: "
+        f"a softly blurred area, negative space, dark vignette, light gradient, or out-of-focus background area. "
+        f"This space must still look like part of the image, not like a box or panel.\n\n"
+        f"Render exactly these two text elements only:\n"
+        f"Main title: '{treatment_subject}'\n"
+        f"Small salon signature: '{center_name}'\n\n"
+        f"Place both text elements inside the image area, directly over the visual background. "
+        f"The treatment name should be large and elegant, positioned in the natural negative space. "
+        f"The salon name should be smaller and placed near the bottom area, also directly over the image.\n\n"
+        f"Forbidden: text boxes, banners, panels, rectangles, solid overlays, monochrome strips, "
+        f"header/footer bars, separate caption areas, CTA, price, slogans, hashtags, watermarks, extra words.\n\n"
+        f"Use the brand palette naturally as lighting, gradients, atmosphere, props, reflections, and soft color grading.\n"
+        f"Output: square 1:1, publication-ready."
     )
 
 

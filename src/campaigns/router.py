@@ -192,13 +192,8 @@ async def generate_campaign_image(campaign_id: str, tenant: dict = Depends(get_t
     target_summary = campaign.get("target_summary") or {}
     treatment_label = (target_summary.get("treatment_label") or "").strip()
 
-    concept_source = (
-        treatment_label
-        or objective
-        or reason_text
-        or message_text[:120]
-        or "Promozione esclusiva"
-    )
+    # Pass only treatment_label or objective — never the WA message text (would appear on image)
+    concept_source = treatment_label or objective or "Promozione esclusiva"
     feed_bytes, resolved_label = await generate_campaign_graphic(concept_source, tenant)
     if not feed_bytes:
         raise HTTPException(status_code=500, detail="Generazione grafica fallita, riprova")
