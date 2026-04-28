@@ -140,7 +140,8 @@ async def send_campaign(campaign_id: str, tenant: dict = Depends(get_tenant)):
     if not client_data:
         raise HTTPException(status_code=400, detail="Nessun destinatario trovato - rianalizza la campagna")
 
-    logger.info("Campaign %s message_text raw: %r", campaign_id, message_text[:200])
+    image_url: str | None = target_summary.get("image_url") or None
+    logger.info("Campaign %s message_text raw: %r, image: %s", campaign_id, message_text[:200], bool(image_url))
     sent = 0
     failed = 0
     for client in client_data:
@@ -151,7 +152,7 @@ async def send_campaign(campaign_id: str, tenant: dict = Depends(get_tenant)):
             client.get("name"),
             personalized[:80],
         )
-        result = await send_whatsapp_message(client["phone"], personalized, tenant["id"])
+        result = await send_whatsapp_message(client["phone"], personalized, tenant["id"], image_url)
         if result.get("ok"):
             sent += 1
         else:

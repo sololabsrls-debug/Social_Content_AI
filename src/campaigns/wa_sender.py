@@ -9,9 +9,12 @@ import httpx
 
 logger = logging.getLogger("CAMPAIGNS.wa_sender")
 
-async def send_whatsapp_message(phone: str, message: str, tenant_id: str) -> dict:
+async def send_whatsapp_message(
+    phone: str, message: str, tenant_id: str, image_url: str | None = None
+) -> dict:
     """
     Send a single WhatsApp message via the Baileys bot.
+    If image_url is provided, sends an image+caption message.
     Returns {"ok": True} or {"ok": False, "error": "..."}.
     """
     wa_bot_url = os.getenv("WA_BOT_URL", "")
@@ -24,12 +27,16 @@ async def send_whatsapp_message(phone: str, message: str, tenant_id: str) -> dic
         logger.error("WA_API_KEY not configured")
         return {"ok": False, "error": "WA_API_KEY not configured"}
 
+    payload: dict = {"phone": phone.lstrip("+"), "message": message, "tenantId": tenant_id}
+    if image_url:
+        payload["imageUrl"] = image_url
+
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
                 f"{wa_bot_url}/send",
                 headers={"X-API-Key": wa_api_key},
-                json={"phone": phone.lstrip("+"), "message": message, "tenantId": tenant_id},
+                json=payload,
             )
             resp.raise_for_status()
             return {"ok": True}
