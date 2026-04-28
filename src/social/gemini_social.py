@@ -1445,6 +1445,155 @@ Regole:
 # ── 3. Generazione immagine ────────────────────────────────────────
 
 # Direzioni creative per le 3 varianti
+async def _extract_treatment_label(concept: str) -> str:
+    """Extract a 2-4 word Italian treatment label from concept text using text model."""
+    try:
+        client = _get_client()
+        response = await client.aio.models.generate_content(
+            model=MODEL_TEXT,
+            contents=(
+                f"Estrai il nome del trattamento estetico da questo testo di campagna.\n"
+                f"Testo: {concept}\n\n"
+                "Regole: risposta SOLO con il nome del trattamento, max 4 parole in italiano, "
+                "stile nome servizio premium (es. 'Manicure', 'Laminazione Ciglia', "
+                "'Trattamento Viso', 'Ceretta Classica'). NESSUNA altra parola, "
+                "NESSUNA spiegazione."
+            ),
+            config=types.GenerateContentConfig(temperature=0.1),
+        )
+        label = (response.text or "").strip().strip('"').strip("'")
+        return label[:60] if label else "Trattamento"
+    except Exception as exc:
+        logger.warning("_extract_treatment_label failed: %s", exc)
+        return "Trattamento"
+
+
+def _extract_visual_identity_from_brand_prompt(prompt: str) -> str:
+    if not prompt:
+        return ""
+    marker_index = prompt.upper().find("STILE VISIVO")
+    if marker_index == -1:
+        return ""
+    tail = prompt[marker_index:]
+    lines: list[str] = []
+    for raw_line in tail.splitlines()[1:8]:
+        line = raw_line.strip().strip("-")
+        if not line:
+            if lines:
+                break
+            continue
+        if "CTA standard" in line or "NON usare" in line:
+            break
+        lines.append(line)
+    return " ".join(lines).strip()
+
+
+def build_campaign_graphic_system_instruction(tenant: dict) -> str:
+    sp = tenant.get("social_profile") or {}
+    center_name = tenant.get("display_name") or tenant.get("name") or "Centro Estetico"
+    visual_style = sp.get("visual_style") or sp.get("style") or "minimal"
+    photo_style = sp.get("photo_style") or "bright_natural"
+    typography_style = sp.get("typography_style") or "serif_elegant"
+    primary_color = tenant.get("theme_primary_color") or "#6b2d4e"
+    secondary_color = tenant.get("theme_secondary_color") or "#c9a0b4"
+    accent_color = sp.get("accent_color") or secondary_color
+    background_color = sp.get("background_color") or "#fdf5f0"
+    visual_identity = _extract_visual_identity_from_brand_prompt(_get_brand_system_prompt(tenant))
+
+    lines = [
+        f"Sei l'art director del centro estetico '{center_name}'.",
+        "Usa solo la brand identity visiva del centro, non le regole di copywriting.",
+        "Ignora CTA, caption, hashtag, slogan, offerte, prezzi e messaggi WhatsApp.",
+        f"Stile visivo: {visual_style}.",
+        f"Atmosfera fotografica: {photo_style}.",
+        f"Tipografia: {typography_style}.",
+        (
+            f"Palette: primario {primary_color}, secondario {secondary_color}, "
+            f"accento {accent_color}, sfondo {background_color}."
+        ),
+        "Per questa grafica il testo deve restare minimo e limitato solo a quello richiesto nel prompt finale.",
+    ]
+    if visual_identity:
+        lines.append(f"Riferimenti visivi del brand: {visual_identity}.")
+    return "\n".join(lines)
+
+
+def _normalize_campaign_treatment_subject(raw_subject: str) -> str:
+    cleaned = re.sub(r"[\{\}\[\]<>\"'`]+", " ", raw_subject or "")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,.;:-")
+    return cleaned[:60]
+
+
+def _is_safe_treatment_subject(text: str) -> bool:
+    if not text:
+        return False
+    lowered = text.lower()
+    blocked_markers = (
+        "ciao",
+        "gentile",
+        "buongiorno",
+        "salve",
+        "prenota",
+        "scrivici",
+        "whatsapp",
+        "nome",
+        "offerta",
+        "promo",
+    )
+    words = text.split()
+    return len(words) <= 4 and not any(marker in lowered for marker in blocked_markers)
+
+
+def build_campaign_graphic_prompt(treatment_subject: str, center_name: str) -> str:
+    return (
+        "Crea una grafica quadrata per una campagna WhatsApp di un centro estetico. "
+        f"Lo sfondo deve raccontare in modo elegante e pulito il trattamento '{treatment_subject}'. "
+        f"Inserisci solo questi due testi, '{treatment_subject}' e '{center_name}'. "
+        "Segui la brand identity del centro per colori, atmosfera e stile visivo. "
+        "Non trasformare il messaggio WhatsApp in testo grafico. "
+        "Nessun altro testo, nessuna CTA, nessun prezzo, nessun claim lungo, nessun watermark."
+    )
+
+
+async def generate_campaign_graphic(campaign_text: str, tenant: dict) -> tuple[Optional[bytes], str]:
+    """
+    Generate a WhatsApp campaign graphic.
+    The final prompt stays intentionally simple and is guided by visual brand identity only.
+    """
+    center_name = tenant.get("display_name") or tenant.get("name") or "Centro Estetico"
+    visual_system_prompt = build_campaign_graphic_system_instruction(tenant)
+    raw_subject = _normalize_campaign_treatment_subject(campaign_text or "")
+
+    if _is_safe_treatment_subject(raw_subject):
+        treatment_subject = raw_subject
+    else:
+        treatment_subject = await _extract_treatment_label(raw_subject or "Trattamento")
+        treatment_subject = _normalize_campaign_treatment_subject(treatment_subject)
+
+    logger.info("Campaign graphic, center: %r, subject: %r", center_name, treatment_subject)
+    prompt = build_campaign_graphic_prompt(treatment_subject, center_name)
+
+    try:
+        client = _get_client()
+        response = await client.aio.models.generate_content(
+            model=MODEL_IMAGE,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=visual_system_prompt,
+                response_modalities=["TEXT", "IMAGE"],
+                image_config=types.ImageConfig(aspect_ratio="1:1"),
+            ),
+        )
+        feed_bytes = _extract_image_from_response(response)
+        if not feed_bytes:
+            logger.error("generate_campaign_graphic: Gemini non ha restituito immagine")
+            return None, treatment_subject
+        logger.info("Grafica campagna generata, subject: %r", treatment_subject)
+        return feed_bytes, treatment_subject
+    except Exception as exc:
+        logger.error("generate_campaign_graphic fallita: %s", exc)
+        return None, treatment_subject
+
 async def generate_image_variants(
     content_record: dict,
     tenant: dict,

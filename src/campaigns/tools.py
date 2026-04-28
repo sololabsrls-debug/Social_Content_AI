@@ -227,6 +227,20 @@ def get_clients_by_tag(tenant_id: str, tag_name: str) -> list[dict]:
     return clients.data or []
 
 
+def get_client_by_name(tenant_id: str, name: str) -> list[dict]:
+    """Cerca clienti per nome o cognome (ricerca parziale, case-insensitive)."""
+    sb = get_supabase()
+    res = (
+        sb.table("clients")
+        .select("id, name, whatsapp_phone, consent_wa, last_appointment_at, ltv")
+        .eq("tenant_id", tenant_id)
+        .ilike("name", f"%{name}%")
+        .limit(10)
+        .execute()
+    )
+    return res.data or []
+
+
 def get_clients_never_returned(tenant_id: str, after_first_visit_days: int = 60) -> list[dict]:
     """Clienti con una sola visita e non tornate entro N giorni."""
     sb = get_supabase()
@@ -590,6 +604,17 @@ TOOL_SCHEMAS: list[dict] = [
         },
     },
     {
+        "name": "get_client_by_name",
+        "description": "Cerca clienti per nome o cognome (ricerca parziale). Usa quando l'estetista cita clienti specifici per nome — es. 'aggiungi Gabriele' o 'includi le sorelle Rossi'.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nome o cognome da cercare (anche parziale, es. 'Gabriele' o 'Rossi')"},
+            },
+            "required": ["name"],
+        },
+    },
+    {
         "name": "get_clients_never_returned",
         "description": "Trova clienti con una sola visita che non sono tornate entro N giorni dalla prima visita.",
         "input_schema": {
@@ -708,30 +733,63 @@ TOOL_SCHEMAS: list[dict] = [
     {
         "name": "propose_campaign",
         "description": (
-            "Chiama OBBLIGATORIAMENTE questo tool quando hai finito l'analisi e sei pronto "
-            "a proporre la campagna. Passa il motivo del target e il messaggio WhatsApp già "
-            "scritto e pronto per l'invio."
+            "Chiama obbligatoriamente questo tool quando hai finito l'analisi e sei pronto "
+            "a proporre la campagna. Passa sempre sintesi obiettivo, motivo del target, "
+            "messaggio WhatsApp, variante del messaggio e nome breve del trattamento. "
+            "Se stai modificando la lista clienti, includi target_client_names con la lista finale."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
+                "objective_summary": {
+                    "type": "string",
+                    "description": (
+                        "Sintesi breve e chiara dell'obiettivo attuale della campagna, max 8 parole."
+                    ),
+                },
                 "target_reason": {
                     "type": "string",
                     "description": (
-                        "Spiegazione in 2-3 frasi del perché questo target è stato scelto "
-                        "e perché la campagna avrà successo. Senza asterischi o trattini."
+                        "Spiegazione in 2 o 3 frasi del perché questo target è stato scelto "
+                        "e perché la campagna ha senso. Senza markdown."
                     ),
                 },
                 "wa_message": {
                     "type": "string",
                     "description": (
                         "Il messaggio WhatsApp completo, pronto per l'invio. "
-                        "Usa {{nome}} come segnaposto per il nome cliente. "
-                        "Niente asterischi, niente trattini."
+                        "Usa {{nome}} come segnaposto per il nome cliente."
+                    ),
+                },
+                "wa_message_variant": {
+                    "type": "string",
+                    "description": (
+                        "Variante più corta o più premium del messaggio principale, sempre con {{nome}}."
+                    ),
+                },
+                "treatment_label": {
+                    "type": "string",
+                    "description": (
+                        "Nome breve del trattamento o focus campagna, massimo 4 parole, "
+                        "esempio Manicure Gel o Laminazione Ciglia."
+                    ),
+                },
+                "target_client_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Lista esatta e definitiva dei nomi clienti da includere nel target. "
+                        "Usala quando aggiungi o rimuovi clienti specifici."
                     ),
                 },
             },
-            "required": ["target_reason", "wa_message"],
+            "required": [
+                "objective_summary",
+                "target_reason",
+                "wa_message",
+                "wa_message_variant",
+                "treatment_label"
+            ],
         },
     },
 ]
@@ -747,6 +805,7 @@ TOOL_FUNCTIONS: dict[str, Any] = {
     "get_clients_with_birthday": get_clients_with_birthday,
     "get_recently_contacted_clients": get_recently_contacted_clients,
     "get_clients_by_tag": get_clients_by_tag,
+    "get_client_by_name": get_client_by_name,
     "get_clients_never_returned": get_clients_never_returned,
     "get_appointments_gaps": get_appointments_gaps,
     "get_appointments_by_service": get_appointments_by_service,
