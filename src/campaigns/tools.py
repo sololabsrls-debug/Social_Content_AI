@@ -57,28 +57,37 @@ def get_clients_by_service(
     """Clienti che hanno fatto un servizio almeno N volte negli ultimi M mesi."""
     sb = get_supabase()
     cutoff = (date.today() - timedelta(days=30 * months_back)).isoformat()
+
+    # Lookup service IDs explicitly — avoids PostgREST FK join that silently returns null
+    svc_res = (
+        sb.table("services")
+        .select("id")
+        .eq("tenant_id", tenant_id)
+        .ilike("name", f"%{service_name}%")
+        .execute()
+    )
+    service_ids = [s["id"] for s in (svc_res.data or [])]
+    if not service_ids:
+        return []
+
     appts = (
         sb.table("appointments")
-        .select("client_id, service:services(name)")
+        .select("client_id")
         .eq("tenant_id", tenant_id)
         .gte("start_at", cutoff)
         .in_("status", ["confirmed", "completed"])
+        .in_("service_id", service_ids)
         .execute()
     )
-    rows = appts.data or []
-    service_lower = service_name.lower()
-    counts: Counter = Counter()
-    for r in rows:
-        svc = r.get("service") or {}
-        svc_name = (svc.get("name") or "").lower()
-        if service_lower in svc_name and r.get("client_id"):
-            counts[r["client_id"]] += 1
+    counts: Counter = Counter(
+        r["client_id"] for r in (appts.data or []) if r.get("client_id")
+    )
     qualifying = [cid for cid, cnt in counts.items() if cnt >= min_visits]
     if not qualifying:
         return []
     clients = (
         sb.table("clients")
-        .select("id, name, whatsapp_phone, consent_wa, last_appointment_at, ltv")
+        .select("id, name, whatsapp_phone, phone, consent_wa, last_appointment_at, ltv")
         .eq("tenant_id", tenant_id)
         .in_("id", qualifying[:100])
         .execute()

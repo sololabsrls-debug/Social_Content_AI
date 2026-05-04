@@ -358,7 +358,14 @@ async def run_campaign_agent(
 
                 if tc.name in target_replace_tools and isinstance(result, list):
                     target_selection_touched = True
-                    target_client_data = _dedupe_client_data(result)
+                    # Filter to WA-consented clients only for auto-selected targets
+                    consented = [c for c in result if c.get("consent_wa")]
+                    target_client_data = _dedupe_client_data(consented)
+                elif tc.name == "get_clients_reachable_wa" and isinstance(result, list):
+                    # Use WA list as fallback target when no service-specific target found yet
+                    if not target_client_data:
+                        target_client_data = _dedupe_client_data(result)
+                        target_selection_touched = True
                 elif tc.name == "get_client_by_name" and isinstance(result, list):
                     target_selection_touched = True
                     if not named_lookup_seeded:
@@ -389,10 +396,8 @@ async def run_campaign_agent(
                     }
                     yield "canvas_update", emitted_update
                     if canvas_update["block"] == "target":
-                        final_target_count = merged_data.get(
-                            "count",
-                            merged_data.get("reachable", 0),
-                        )
+                        # Use `or` fallback: count=0 (explicit) should fall back to reachable
+                        final_target_count = merged_data.get("count") or merged_data.get("reachable", 0)
 
                 tool_results.append(
                     {
