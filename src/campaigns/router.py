@@ -117,7 +117,7 @@ async def send_campaign(campaign_id: str, tenant: dict = Depends(get_tenant)):
     sb = get_supabase()
     res = (
         sb.table("wa_campaigns")
-        .select("message_text, target_summary, status")
+        .select("message_text, target_summary, status, image_url")
         .eq("id", campaign_id)
         .eq("tenant_id", tenant["id"])
         .limit(1)
@@ -140,7 +140,7 @@ async def send_campaign(campaign_id: str, tenant: dict = Depends(get_tenant)):
     if not client_data:
         raise HTTPException(status_code=400, detail="Nessun destinatario trovato - rianalizza la campagna")
 
-    image_url: str | None = target_summary.get("image_url") or None
+    image_url: str | None = campaign.get("image_url") or target_summary.get("image_url") or None
     logger.info("Campaign %s message_text raw: %r, image: %s", campaign_id, message_text[:200], bool(image_url))
     sent = 0
     failed = 0
