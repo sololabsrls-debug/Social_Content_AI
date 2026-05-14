@@ -219,7 +219,10 @@ async def generate_campaign_image(campaign_id: str, tenant: dict = Depends(get_t
     target_summary["image_url"] = image_url
     if resolved_label:
         target_summary["treatment_label"] = resolved_label
-    sb.table("wa_campaigns").update({"target_summary": target_summary}).eq("id", campaign_id).execute()
+    sb.table("wa_campaigns").update({
+        "target_summary": target_summary,
+        "image_url": image_url,
+    }).eq("id", campaign_id).execute()
 
     center_name = tenant.get("display_name") or tenant.get("name") or "Centro Estetico"
     return {
