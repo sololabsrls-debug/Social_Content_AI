@@ -1,5 +1,6 @@
 # src/campaigns/auto/planner.py
 import logging
+from calendar import monthrange
 from datetime import datetime, timedelta, timezone
 
 import pytz
@@ -134,13 +135,15 @@ def _insert_campaign_slots(sb, tenant_id: str, plan_id: str, bundles: list, mont
     rows = []
     bundle_ids = []
 
+    _, days_in_month = monthrange(year, month)
     for i, bundle in enumerate(bundles):
-        local_dt = datetime(year, month, START_DAY + i * spacing, SEND_HOUR, 0, 0)
+        day = min(START_DAY + i * spacing, days_in_month)
+        local_dt = datetime(year, month, day, SEND_HOUR, 0, 0)
         scheduled_utc = ROME_TZ.localize(local_dt).astimezone(pytz.utc)
         notif_local = local_dt - timedelta(days=5)
-        # Clamp notification: don't notify before day 1
-        if notif_local.day < 1:
-            notif_local = notif_local.replace(day=1)
+        # Clamp notification: don't notify before day 1 of the campaign month
+        if notif_local.month != local_dt.month or notif_local.year != local_dt.year:
+            notif_local = local_dt.replace(day=1)
         notif_utc = ROME_TZ.localize(notif_local).astimezone(pytz.utc)
 
         rows.append({
