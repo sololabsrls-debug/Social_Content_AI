@@ -27,9 +27,11 @@ async def lifespan(app: FastAPI):
     # Avvia scheduler con job domenicale
     from apscheduler.schedulers.background import BackgroundScheduler
     from src.social.scheduler_jobs import register_social_jobs
+    from src.campaigns.auto.scheduler import register_auto_campaign_jobs  # NEW
 
     scheduler = BackgroundScheduler(timezone="Europe/Rome")
     register_social_jobs(scheduler)
+    register_auto_campaign_jobs(scheduler)  # NEW
     scheduler.start()
     logger.info("Scheduler avviato")
 
