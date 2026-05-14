@@ -63,6 +63,9 @@ app.include_router(social_router)
 from src.campaigns.router import router as campaigns_router
 app.include_router(campaigns_router)
 
+from src.campaigns.auto.router import router as auto_campaigns_router
+app.include_router(auto_campaigns_router)
+
 
 @app.get("/health")
 async def health():
