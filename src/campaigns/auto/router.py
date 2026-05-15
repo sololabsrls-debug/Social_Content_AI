@@ -29,6 +29,27 @@ def _campaign_or_404(sb, campaign_id: str, tenant_id: str) -> dict:
     return row
 
 
+@router.post("/plan/{month}/{year}/generate")
+async def trigger_generate_plan(month: int, year: int, tenant: dict = Depends(get_tenant)):
+    import threading
+    from src.campaigns.auto.planner import generate_monthly_plan
+    from src.campaigns.auto.generator import generate_all_for_plan
+    from src.campaigns.auto.scheduler import _finalize_plan_status
+
+    tenant_id = tenant["id"]
+    plan_id = generate_monthly_plan(tenant_id, month, year)
+
+    def _run():
+        try:
+            generate_all_for_plan(plan_id, tenant)
+            _finalize_plan_status(get_supabase(), plan_id)
+        except Exception as exc:
+            logger.error("Background generation failed for plan %s: %s", plan_id, exc)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"ok": True, "plan_id": plan_id}
+
+
 @router.get("/plan/{month}/{year}")
 async def get_plan(month: int, year: int, tenant: dict = Depends(get_tenant)):
     sb = get_supabase()
