@@ -175,11 +175,78 @@ async def delete_bundle(bundle_id: str, tenant: dict = Depends(get_tenant)):
     return {"ok": True}
 
 
+@router.post("/{campaign_id}/regenerate-text")
+async def regenerate_campaign_text(campaign_id: str, tenant: dict = Depends(get_tenant)):
+    import os
+    import anthropic as _anthropic
+    import pytz
+
+    sb = get_supabase()
+    tenant_id = tenant["id"]
+
+    c_res = sb.table("wa_campaigns").select("auto_bundle_id, scheduled_at") \
+        .eq("id", campaign_id).eq("tenant_id", tenant_id).limit(1).execute()
+    campaign = (c_res.data or [None])[0]
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campagna non trovata")
+
+    bundle: dict = {}
+    if campaign.get("auto_bundle_id"):
+        b_res = sb.table("bundles").select("name, bundle_price, bundle_type") \
+            .eq("id", campaign["auto_bundle_id"]).limit(1).execute()
+        bundle = (b_res.data or [None])[0] or {}
+
+    scheduled_str = campaign.get("scheduled_at", "")
+    try:
+        scheduled_dt = datetime.fromisoformat(scheduled_str.replace("Z", "+00:00"))
+        rome_dt = scheduled_dt.astimezone(pytz.timezone("Europe/Rome"))
+        date_label = f"{rome_dt.day} {rome_dt.strftime('%B %Y')}"
+    except Exception:
+        date_label = scheduled_str[:10]
+
+    price_str = f"€{bundle['bundle_price']:.2f}" if bundle.get("bundle_price") else "prezzo speciale"
+    bt = bundle.get("bundle_type", "service_product")
+    name = bundle.get("name") or "promozione"
+    if bt == "service_only":
+        promo_desc = f"il trattamento '{name}' a {price_str}"
+    elif bt == "product_only":
+        promo_desc = f"il prodotto '{name}' a {price_str}"
+    else:
+        promo_desc = f"il bundle '{name}' a {price_str}"
+
+    tenant_name = tenant.get("name") or tenant.get("display_name") or "il centro"
+
+    try:
+        client_obj = _anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        msg = client_obj.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=500,
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Sei una copywriter per centri estetici italiani. "
+                    f"Scrivi un messaggio WhatsApp promozionale per {tenant_name} riguardo a {promo_desc}, "
+                    f"da inviare il {date_label}. "
+                    f"Usa {{{{nome}}}} come segnaposto per il nome della cliente. "
+                    f"Tono caldo, personale, max 150 parole. Includi call to action per prenotare. "
+                    f"Rispondi SOLO con il testo del messaggio."
+                )
+            }]
+        )
+        new_text = msg.content[0].text.strip()
+    except Exception as exc:
+        logger.error("Regenerate text failed for %s: %s", campaign_id, exc)
+        raise HTTPException(status_code=500, detail="Rigenerazione testo fallita")
+
+    sb.table("wa_campaigns").update({"message_text": new_text}).eq("id", campaign_id).execute()
+    return {"message_text": new_text}
+
+
 @router.put("/{campaign_id}/approve")
 async def approve_campaign(campaign_id: str, tenant: dict = Depends(get_tenant)):
     sb = get_supabase()
     row = _campaign_or_404(sb, campaign_id, tenant["id"])
-    if row["status"] != "auto_pending":
+    if row["status"] not in ("auto_pending", "auto_draft"):
         raise HTTPException(status_code=409, detail=f"Campagna in stato '{row['status']}', non approvabile")
     sb.table("wa_campaigns").update({"status": "auto_approved"}) \
         .eq("id", campaign_id).execute()
