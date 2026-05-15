@@ -114,7 +114,7 @@ async def create_bundle(body: dict, tenant: dict = Depends(get_tenant)):
         if not p_res.data:
             raise HTTPException(status_code=403, detail="Prodotto non appartiene al tenant")
 
-    res = sb.table("bundles").insert({
+    insert_data: dict = {
         "tenant_id": tenant_id,
         "bundle_type": bundle_type,
         "name": body.get("name", "Nuova promozione"),
@@ -123,7 +123,13 @@ async def create_bundle(body: dict, tenant: dict = Depends(get_tenant)):
         "bundle_price": body.get("bundle_price", 0),
         "is_active": True,
         "sort_order": body.get("sort_order", 0),
-    }).execute()
+    }
+    if body.get("original_price") is not None:
+        insert_data["original_price"] = body["original_price"]
+    if body.get("discount_pct") is not None:
+        insert_data["discount_pct"] = body["discount_pct"]
+
+    res = sb.table("bundles").insert(insert_data).execute()
     return res.data[0] if res.data else {}
 
 
