@@ -41,8 +41,13 @@ async def trigger_generate_plan(month: int, year: int, tenant: dict = Depends(ge
 
     def _run():
         try:
+            sb2 = get_supabase()
+            check = sb2.table("auto_campaign_plans").select("status").eq("id", plan_id).limit(1).execute()
+            if (check.data or [{}])[0].get("status") != "generating":
+                logger.warning("Plan %s not in generating state, skipping background run", plan_id)
+                return
             generate_all_for_plan(plan_id, tenant)
-            _finalize_plan_status(get_supabase(), plan_id)
+            _finalize_plan_status(sb2, plan_id)
         except Exception as exc:
             logger.error("Background generation failed for plan %s: %s", plan_id, exc)
 
