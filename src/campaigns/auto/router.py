@@ -70,12 +70,15 @@ async def save_config(body: AutoCampaignConfigIn, tenant: dict = Depends(get_ten
     return {"ok": True}
 
 
+_PROMO_TYPES = ("service_product", "service_only", "product_only")
+
+
 @router.get("/bundles")
 async def list_bundles(tenant: dict = Depends(get_tenant)):
     sb = get_supabase()
-    res = sb.table("bundles").select("id, name, service_ids, product_ids, bundle_price, sort_order, is_active, rotation_used_at") \
-        .eq("tenant_id", tenant["id"]).eq("bundle_type", "service_product") \
-        .order("sort_order").execute()
+    res = sb.table("bundles").select(
+        "id, name, service_ids, product_ids, bundle_price, bundle_type, sort_order, is_active, rotation_used_at"
+    ).eq("tenant_id", tenant["id"]).in_("bundle_type", list(_PROMO_TYPES)).order("sort_order").execute()
     return res.data or []
 
 
@@ -83,20 +86,38 @@ async def list_bundles(tenant: dict = Depends(get_tenant)):
 async def create_bundle(body: dict, tenant: dict = Depends(get_tenant)):
     sb = get_supabase()
     tenant_id = tenant["id"]
+    bundle_type = body.get("bundle_type", "service_product")
+    if bundle_type not in _PROMO_TYPES:
+        raise HTTPException(status_code=422, detail=f"bundle_type non valido. Valori accettati: {', '.join(_PROMO_TYPES)}")
+
     service_ids = body.get("service_ids", [])
     product_ids = body.get("product_ids", [])
-    if len(service_ids) != 1 or len(product_ids) != 1:
-        raise HTTPException(status_code=422, detail="bundle service_product richiede esattamente 1 servizio e 1 prodotto")
 
-    s_res = sb.table("services").select("id").eq("id", service_ids[0]).eq("tenant_id", tenant_id).limit(1).execute()
-    p_res = sb.table("products").select("id").eq("id", product_ids[0]).eq("tenant_id", tenant_id).limit(1).execute()
-    if not s_res.data or not p_res.data:
-        raise HTTPException(status_code=403, detail="Servizio o prodotto non appartiene al tenant")
+    if bundle_type == "service_product":
+        if len(service_ids) != 1 or len(product_ids) != 1:
+            raise HTTPException(status_code=422, detail="service_product richiede esattamente 1 servizio e 1 prodotto")
+    elif bundle_type == "service_only":
+        if len(service_ids) != 1:
+            raise HTTPException(status_code=422, detail="service_only richiede esattamente 1 servizio")
+        product_ids = []
+    elif bundle_type == "product_only":
+        if len(product_ids) != 1:
+            raise HTTPException(status_code=422, detail="product_only richiede esattamente 1 prodotto")
+        service_ids = []
+
+    if service_ids:
+        s_res = sb.table("services").select("id").eq("id", service_ids[0]).eq("tenant_id", tenant_id).limit(1).execute()
+        if not s_res.data:
+            raise HTTPException(status_code=403, detail="Servizio non appartiene al tenant")
+    if product_ids:
+        p_res = sb.table("products").select("id").eq("id", product_ids[0]).eq("tenant_id", tenant_id).limit(1).execute()
+        if not p_res.data:
+            raise HTTPException(status_code=403, detail="Prodotto non appartiene al tenant")
 
     res = sb.table("bundles").insert({
         "tenant_id": tenant_id,
-        "bundle_type": "service_product",
-        "name": body.get("name", "Nuovo bundle"),
+        "bundle_type": bundle_type,
+        "name": body.get("name", "Nuova promozione"),
         "service_ids": service_ids,
         "product_ids": product_ids,
         "bundle_price": body.get("bundle_price", 0),

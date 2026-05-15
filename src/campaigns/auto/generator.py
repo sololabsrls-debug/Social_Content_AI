@@ -32,9 +32,17 @@ async def generate_campaign_content(campaign: dict, bundle: dict, tenant: dict) 
     except Exception:
         date_label = scheduled_str[:10]
 
+    price_str = f"€{bundle['bundle_price']:.2f}" if bundle.get("bundle_price") else "prezzo speciale"
+    bundle_type = bundle.get("bundle_type", "service_product")
+    if bundle_type == "service_only":
+        promo_desc = f"una promozione sul trattamento '{bundle['name']}' a {price_str}"
+    elif bundle_type == "product_only":
+        promo_desc = f"una promozione sul prodotto '{bundle['name']}' a {price_str}"
+    else:
+        promo_desc = f"un pacchetto trattamento + prodotto '{bundle['name']}' a {price_str}"
+
     prompt = (
-        f"Crea una campagna WhatsApp per il bundle '{bundle['name']}': "
-        f"un pacchetto servizio + prodotto al prezzo di €{bundle['bundle_price']:.2f}. "
+        f"Crea una campagna WhatsApp per {promo_desc}. "
         f"Data di invio prevista: {date_label}. "
         f"Analizza il target migliore, poi prepara il messaggio con {{{{nome}}}} come segnaposto."
     )

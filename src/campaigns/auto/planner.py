@@ -35,7 +35,7 @@ def generate_monthly_plan(tenant_id: str, month: int, year: int) -> str:
     bundles = _get_valid_bundles(sb, tenant_id, campaigns_per_month)
 
     if not bundles:
-        _fail_plan(sb, plan_id, "No valid service_product bundles (need exactly 1 service + 1 product each)")
+        _fail_plan(sb, plan_id, "No valid promotional bundles. Configure at least one service bundle, single treatment, or single product.")
         return plan_id
 
     _insert_campaign_slots(sb, tenant_id, plan_id, bundles, month, year)
@@ -108,24 +108,32 @@ def _get_config(sb, tenant_id: str):
     return (res.data or [None])[0]
 
 
+_PROMO_TYPES = ["service_product", "service_only", "product_only"]
+
+
 def _get_valid_bundles(sb, tenant_id: str, limit: int) -> list:
     # Fetch 4x more than needed so filtering invalids doesn't short-change the result.
     res = sb.table("bundles") \
-        .select("id, name, service_ids, product_ids, bundle_price") \
+        .select("id, name, service_ids, product_ids, bundle_price, bundle_type") \
         .eq("tenant_id", tenant_id) \
-        .eq("bundle_type", "service_product") \
+        .in_("bundle_type", _PROMO_TYPES) \
         .eq("is_active", True) \
         .order("rotation_used_at", desc=False, nullsfirst=True) \
         .limit(limit * 4) \
         .execute()
     valid = []
     for b in (res.data or []):
+        bt = b.get("bundle_type")
         sids = b.get("service_ids") or []
         pids = b.get("product_ids") or []
-        if len(sids) == 1 and len(pids) == 1:
+        if bt == "service_product" and len(sids) == 1 and len(pids) == 1:
+            valid.append(b)
+        elif bt == "service_only" and len(sids) == 1:
+            valid.append(b)
+        elif bt == "product_only" and len(pids) == 1:
             valid.append(b)
         else:
-            logger.warning("Bundle %s skipped: %d services, %d products", b["id"], len(sids), len(pids))
+            logger.warning("Bundle %s skipped (type=%s, services=%d, products=%d)", b["id"], bt, len(sids), len(pids))
     return valid[:limit]
 
 
