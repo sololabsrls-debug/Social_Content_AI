@@ -279,6 +279,33 @@ async def reschedule_campaign(campaign_id: str, body: AutoCampaignRescheduleIn, 
     return {"ok": True}
 
 
+@router.post("/plan/{month}/{year}/propose")
+async def trigger_propose(month: int, year: int, tenant: dict = Depends(get_tenant)):
+    """Trigger manuale del proposer AI per il tenant corrente."""
+    import threading
+    from src.campaigns.auto.planner import _get_or_create_plan
+    from src.campaigns.auto.proposer import generate_proposals
+    from src.campaigns.auto.tokens import generate_token
+    import os
+
+    tenant_id = tenant["id"]
+    sb = get_supabase()
+    plan_id, _ = _get_or_create_plan(sb, tenant_id, month, year)
+
+    def _run():
+        try:
+            count = generate_proposals(tenant_id, plan_id, month, year)
+            token_raw = generate_token(tenant_id, "monthly_selection", plan_id, expires_days=7)
+            gestionale_url = os.getenv("GESTIONALE_URL", "https://app.radiantbeauty.it")
+            link = f"{gestionale_url}/p/selection/{token_raw}"
+            logger.info("Propose: %d proposals for tenant %s, link: %s", count, tenant_id, link)
+        except Exception as exc:
+            logger.error("Propose failed for tenant %s: %s", tenant_id, exc)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"ok": True, "plan_id": plan_id}
+
+
 @router.get("/plan/{month}/{year}/proposals")
 async def list_proposals(month: int, year: int, tenant: dict = Depends(get_tenant)):
     sb = get_supabase()
