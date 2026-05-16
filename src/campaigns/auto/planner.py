@@ -108,7 +108,11 @@ def _get_config(sb, tenant_id: str):
     return (res.data or [None])[0]
 
 
-_PROMO_TYPES = ["service_product", "service_only", "product_only"]
+_PROMO_TYPES = [
+    "service_product", "service_only", "product_only",
+    "multi_session", "service_service", "product_bundle",
+    "seasonal", "reactivation",
+]
 
 
 def _get_valid_bundles(sb, tenant_id: str, limit: int) -> list:
@@ -178,3 +182,58 @@ def _fail_plan(sb, plan_id: str, message: str):
         "error_message": message,
     }).eq("id", plan_id).execute()
     logger.error("Plan %s failed: %s", plan_id, message)
+
+
+def schedule_proposals_as_campaigns(
+    sb, tenant_id: str, plan_id: str, proposals: list[dict], month: int, year: int
+) -> list[str]:
+    """
+    Crea wa_campaigns (status=auto_generating) per le proposte selezionate.
+    Distribuisce le date nel mese restante a partire da oggi + 3 giorni.
+    Ritorna lista di campaign_id creati.
+    """
+    from calendar import monthrange
+    import pytz
+
+    rome_tz = pytz.timezone("Europe/Rome")
+    now_rome = datetime.now(timezone.utc).astimezone(rome_tz)
+    today_day = now_rome.day
+
+    # Start dal max tra oggi+3 e giorno 7 del mese
+    start_day = max(today_day + 3, START_DAY)
+    _, days_in_month = monthrange(year, month)
+
+    n = len(proposals)
+    if n == 0:
+        return []
+
+    available_days = days_in_month - start_day
+    spacing = max(3, available_days // n)
+
+    rows = []
+    for i, proposal in enumerate(proposals):
+        day = min(start_day + i * spacing, days_in_month)
+        local_dt = datetime(year, month, day, SEND_HOUR, 0, 0)
+        scheduled_utc = rome_tz.localize(local_dt).astimezone(pytz.utc)
+        notif_local = local_dt - timedelta(days=1)
+        if notif_local.month != local_dt.month:
+            notif_local = local_dt.replace(day=1)
+        notif_utc = rome_tz.localize(notif_local).astimezone(pytz.utc)
+        # approval_deadline_at = 2 ore prima dell'invio
+        deadline_utc = scheduled_utc - timedelta(hours=2)
+
+        rows.append({
+            "tenant_id": tenant_id,
+            "auto_plan_id": plan_id,
+            "auto_proposal_id": proposal["id"],
+            "status": "auto_generating",
+            "scheduled_at": scheduled_utc.isoformat(),
+            "notification_due_at": notif_utc.isoformat(),
+            "approval_deadline_at": deadline_utc.isoformat(),
+            "objective": proposal.get("display_name"),
+        })
+
+    if rows:
+        res = sb.table("wa_campaigns").insert(rows).execute()
+        return [r["id"] for r in (res.data or [])]
+    return []
