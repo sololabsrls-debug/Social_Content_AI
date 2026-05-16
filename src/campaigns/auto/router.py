@@ -96,7 +96,11 @@ async def save_config(body: AutoCampaignConfigIn, tenant: dict = Depends(get_ten
     return {"ok": True}
 
 
-_PROMO_TYPES = ("service_product", "service_only", "product_only")
+_PROMO_TYPES = (
+    "service_product", "service_only", "product_only",
+    "multi_session", "service_service", "product_bundle",
+    "seasonal", "reactivation",
+)
 
 
 @router.get("/bundles")
@@ -272,4 +276,71 @@ async def reschedule_campaign(campaign_id: str, body: AutoCampaignRescheduleIn, 
         raise HTTPException(status_code=409, detail="Campagna già inviata o in invio")
     sb.table("wa_campaigns").update({"scheduled_at": body.scheduled_at}) \
         .eq("id", campaign_id).execute()
+    return {"ok": True}
+
+
+@router.get("/plan/{month}/{year}/proposals")
+async def list_proposals(month: int, year: int, tenant: dict = Depends(get_tenant)):
+    sb = get_supabase()
+    plan_res = sb.table("auto_campaign_plans").select("id") \
+        .eq("tenant_id", tenant["id"]).eq("month", month).eq("year", year).limit(1).execute()
+    plan = (plan_res.data or [None])[0]
+    if not plan:
+        return []
+    res = sb.table("auto_campaign_proposals").select("*") \
+        .eq("plan_id", plan["id"]).order("created_at").execute()
+    return res.data or []
+
+
+@router.post("/proposals/{proposal_id}/save-as-fixed")
+async def save_proposal_as_fixed(proposal_id: str, tenant: dict = Depends(get_tenant)):
+    sb = get_supabase()
+    tenant_id = tenant["id"]
+
+    # Fetch proposta
+    p_res = sb.table("auto_campaign_proposals").select("*") \
+        .eq("id", proposal_id).eq("tenant_id", tenant_id).limit(1).execute()
+    proposal = (p_res.data or [None])[0]
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposta non trovata")
+
+    # Fetch piano per month/year
+    plan_res = sb.table("auto_campaign_plans").select("month, year") \
+        .eq("id", proposal["plan_id"]).limit(1).execute()
+    plan = (plan_res.data or [{}])[0]
+
+    # Crea bundle fisso
+    bundle_data = {
+        "tenant_id": tenant_id,
+        "bundle_type": proposal["promo_type"],
+        "name": proposal.get("display_name") or proposal["promo_type"],
+        "bundle_origin": "ai_monthly",
+        "origin_month": plan.get("month"),
+        "origin_year": plan.get("year"),
+        "promo_config": proposal.get("promo_config", {}),
+        "is_active": True,
+        "sort_order": 0,
+        "bundle_price": (proposal.get("promo_config") or {}).get("bundle_price", 0),
+    }
+    # Mappa service_ids/product_ids dai promo_config per retrocompatibilità
+    config = proposal.get("promo_config") or {}
+    if "service_id" in config:
+        bundle_data["service_ids"] = [config["service_id"]]
+    elif "service_id_1" in config:
+        bundle_data["service_ids"] = [config["service_id_1"], config.get("service_id_2", "")]
+    else:
+        bundle_data["service_ids"] = []
+    if "product_id" in config:
+        bundle_data["product_ids"] = [config["product_id"]]
+    elif "product_ids" in config:
+        bundle_data["product_ids"] = config["product_ids"]
+    else:
+        bundle_data["product_ids"] = []
+
+    sb.table("bundles").insert(bundle_data).execute()
+    sb.table("auto_campaign_proposals").update({
+        "status": "saved_as_fixed",
+        "saved_as_fixed_at": __import__("datetime").datetime.utcnow().isoformat(),
+    }).eq("id", proposal_id).execute()
+
     return {"ok": True}

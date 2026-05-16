@@ -112,6 +112,42 @@ async def _generate_image(campaign_id: str, tenant: dict, campaign: dict) -> str
         return None
 
 
+def generate_for_campaigns(campaign_ids: list[str], tenant: dict) -> None:
+    """
+    Genera contenuto AI per una lista specifica di campaign_id.
+    Usato dopo selezione proposte (non genera per tutto il piano).
+    """
+    sb = get_supabase()
+    if not campaign_ids:
+        return
+
+    res = sb.table("wa_campaigns") \
+        .select("id, tenant_id, auto_bundle_id, auto_proposal_id, scheduled_at, target_summary, objective") \
+        .in_("id", campaign_ids) \
+        .eq("status", "auto_generating") \
+        .execute()
+    campaigns = res.data or []
+
+    if not campaigns:
+        logger.warning("generate_for_campaigns: no auto_generating campaigns found for ids %s", campaign_ids)
+        return
+
+    # Fetch bundles via auto_bundle_id (se esistente) — per proposte può essere None
+    bundle_ids = list({c["auto_bundle_id"] for c in campaigns if c.get("auto_bundle_id")})
+    bundles_by_id: dict = {}
+    if bundle_ids:
+        bundles_res = sb.table("bundles").select("id, name, service_ids, product_ids, bundle_price, bundle_type, promo_config") \
+            .in_("id", bundle_ids).execute()
+        bundles_by_id = {b["id"]: b for b in (bundles_res.data or [])}
+
+    for campaign in campaigns:
+        bundle = bundles_by_id.get(campaign.get("auto_bundle_id")) or {}
+        try:
+            asyncio.run(generate_campaign_content(campaign, bundle, tenant))
+        except Exception as exc:
+            logger.error("generate_for_campaigns failed for %s: %s", campaign["id"], exc)
+
+
 def generate_all_for_plan(plan_id: str, tenant: dict) -> None:
     """
     Synchronous entry point for APScheduler.
