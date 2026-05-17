@@ -18,7 +18,7 @@ def run_monthly_proposer() -> None:
     """1° del mese 07:30: genera proposte AI per ogni tenant attivo e invia WA."""
     from src.campaigns.auto.planner import _get_or_create_plan
     from src.campaigns.auto.proposer import generate_proposals
-    from src.campaigns.wa_sender import send_whatsapp_message
+    from src.campaigns.wa_sender import send_platform_message
     import asyncio
 
     sb = get_supabase()
@@ -50,10 +50,11 @@ def run_monthly_proposer() -> None:
                            "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
             month_name = month_names[month]
 
-            tenant_res = sb.table("tenants").select("phone").eq("id", tenant_id).limit(1).execute()
-            tenant_phone = ((tenant_res.data or [{}])[0]).get("phone")
-            if not tenant_phone:
-                logger.warning("No phone for tenant %s, skipping WA", tenant_id)
+            tenant_res = sb.table("tenants").select("owner_phone, phone").eq("id", tenant_id).limit(1).execute()
+            tenant_row = (tenant_res.data or [{}])[0]
+            owner_phone = tenant_row.get("owner_phone") or tenant_row.get("phone")
+            if not owner_phone:
+                logger.warning("No owner_phone for tenant %s, skipping WA", tenant_id)
                 continue
 
             text = (
@@ -61,7 +62,7 @@ def run_monthly_proposer() -> None:
                 f"Scegli quelle che ti piacciono:\n{link}\n\n"
                 f"Hai 7 giorni per selezionarle."
             )
-            asyncio.run(send_whatsapp_message(tenant_phone, text, tenant_id))
+            asyncio.run(send_platform_message(owner_phone, text))
 
             sb.table("auto_campaign_plans").update({
                 "selection_link_sent_at": now.isoformat()
@@ -74,7 +75,7 @@ def run_monthly_proposer() -> None:
 
 def poll_proposal_reminders() -> None:
     """Ogni 6h: controlla piani senza selezione e invia reminder o fallback."""
-    from src.campaigns.wa_sender import send_whatsapp_message
+    from src.campaigns.wa_sender import send_platform_message
     import asyncio
 
     sb = get_supabase()
@@ -93,8 +94,9 @@ def poll_proposal_reminders() -> None:
                 sent_at = sent_at.replace(tzinfo=timezone.utc)
             elapsed = now - sent_at
 
-            tenant_res = sb.table("tenants").select("phone").eq("id", plan["tenant_id"]).limit(1).execute()
-            phone = ((tenant_res.data or [{}])[0]).get("phone")
+            tenant_res = sb.table("tenants").select("owner_phone, phone").eq("id", plan["tenant_id"]).limit(1).execute()
+            tenant_row = (tenant_res.data or [{}])[0]
+            phone = tenant_row.get("owner_phone") or tenant_row.get("phone")
             if not phone:
                 continue
 
@@ -110,7 +112,7 @@ def poll_proposal_reminders() -> None:
                 )
                 link = f"{GESTIONALE_URL}/p/selection/{token_raw}"
                 text = f"\U000023f0 Ultimo promemoria! Scegli le campagne del mese:\n{link}"
-                asyncio.run(send_whatsapp_message(phone, text, plan["tenant_id"]))
+                asyncio.run(send_platform_message(phone, text))
                 sb.table("auto_campaign_plans").update({"reminder_2_sent_at": now.isoformat()}) \
                     .eq("id", plan["id"]).execute()
                 logger.info("Sent reminder 2 to tenant %s", plan["tenant_id"])
@@ -121,7 +123,7 @@ def poll_proposal_reminders() -> None:
                 )
                 link = f"{GESTIONALE_URL}/p/selection/{token_raw}"
                 text = f"\U0001f4f2 Non dimenticare di scegliere le campagne del mese!\n{link}"
-                asyncio.run(send_whatsapp_message(phone, text, plan["tenant_id"]))
+                asyncio.run(send_platform_message(phone, text))
                 sb.table("auto_campaign_plans").update({"reminder_1_sent_at": now.isoformat()}) \
                     .eq("id", plan["id"]).execute()
                 logger.info("Sent reminder 1 to tenant %s", plan["tenant_id"])

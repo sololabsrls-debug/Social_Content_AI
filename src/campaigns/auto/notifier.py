@@ -3,7 +3,7 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from src.campaigns.wa_sender import send_whatsapp_message
+from src.campaigns.wa_sender import send_platform_message
 from src.supabase_client import get_supabase
 
 logger = logging.getLogger("AUTO.notifier")
@@ -42,13 +42,14 @@ def _notify_one(sb, campaign: dict) -> None:
     campaign_id = campaign["id"]
     tenant_id = campaign["tenant_id"]
 
-    # Get tenant phone
-    tenant_res = sb.table("tenants").select("phone, name, display_name") \
+    # Get tenant owner_phone (fallback to phone)
+    tenant_res = sb.table("tenants").select("phone, owner_phone, name, display_name") \
         .eq("id", tenant_id).limit(1).execute()
     tenant = (tenant_res.data or [None])[0]
-    if not tenant or not tenant.get("phone"):
-        logger.warning("No phone for tenant %s, skipping notification", tenant_id)
-        sb.table("wa_campaigns").update({"status": "auto_notify_error", "auto_error_message": "Tenant phone missing"}) \
+    owner_phone = (tenant or {}).get("owner_phone") or (tenant or {}).get("phone")
+    if not tenant or not owner_phone:
+        logger.warning("No owner_phone for tenant %s, skipping notification", tenant_id)
+        sb.table("wa_campaigns").update({"status": "auto_notify_error", "auto_error_message": "Tenant owner_phone missing"}) \
             .eq("id", campaign_id).execute()
         return
 
@@ -71,16 +72,15 @@ def _notify_one(sb, campaign: dict) -> None:
 
     try:
         _send_whatsapp_link(
-            phone=tenant["phone"],
+            phone=owner_phone,
             campaign_id=campaign_id,
             bundle_name=bundle_name,
-            tenant_id=tenant_id,
             scheduled_str=date_label,
             gestionale_url=GESTIONALE_URL,
         )
         sb.table("wa_campaigns").update({"status": "auto_pending"}) \
             .eq("id", campaign_id).execute()
-        logger.info("Notified campaign %s to %s", campaign_id, tenant["phone"])
+        logger.info("Notified campaign %s to %s", campaign_id, owner_phone)
     except Exception as exc:
         logger.error("WA send failed for campaign %s: %s", campaign_id, exc)
         sb.table("wa_campaigns").update({
@@ -90,7 +90,7 @@ def _notify_one(sb, campaign: dict) -> None:
 
 
 def _send_whatsapp_link(
-    phone: str, campaign_id: str, bundle_name: str, tenant_id: str, scheduled_str: str, gestionale_url: str
+    phone: str, campaign_id: str, bundle_name: str, scheduled_str: str, gestionale_url: str
 ) -> None:
     import asyncio
     link = f"{gestionale_url}/marketing/auto/review/{campaign_id}"
@@ -98,6 +98,6 @@ def _send_whatsapp_link(
         f"\U0001f338 Ho preparato la campagna \"{bundle_name}\" per il {scheduled_str}.\n\n"
         f"Aprila qui per vederla, modificarla e approvarla:\n{link}"
     )
-    result = asyncio.run(send_whatsapp_message(phone, text, tenant_id))
+    result = asyncio.run(send_platform_message(phone, text))
     if not result.get("ok"):
         raise RuntimeError(f"WA send failed: {result.get('error', 'unknown')}")
