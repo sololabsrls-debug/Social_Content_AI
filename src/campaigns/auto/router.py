@@ -281,24 +281,58 @@ async def reschedule_campaign(campaign_id: str, body: AutoCampaignRescheduleIn, 
 
 @router.post("/plan/{month}/{year}/propose")
 async def trigger_propose(month: int, year: int, tenant: dict = Depends(get_tenant)):
-    """Trigger manuale del proposer AI per il tenant corrente."""
+    """Trigger manuale del proposer AI: genera proposte e invia WA all'owner."""
     import threading
+    from datetime import datetime, timezone
     from src.campaigns.auto.planner import _get_or_create_plan
     from src.campaigns.auto.proposer import generate_proposals
     from src.campaigns.auto.tokens import generate_token
+    from src.campaigns.wa_sender import send_platform_message
+    import asyncio
     import os
 
     tenant_id = tenant["id"]
     sb = get_supabase()
     plan_id, _ = _get_or_create_plan(sb, tenant_id, month, year)
 
+    # Controlla se il link è già stato inviato
+    plan_res = sb.table("auto_campaign_plans").select("selection_link_sent_at") \
+        .eq("id", plan_id).limit(1).execute()
+    if (plan_res.data or [{}])[0].get("selection_link_sent_at"):
+        return {"ok": False, "error": "Link già inviato per questo mese", "plan_id": plan_id}
+
     def _run():
         try:
             count = generate_proposals(tenant_id, plan_id, month, year)
+            if count == 0:
+                logger.warning("No proposals generated for tenant %s", tenant_id)
+                return
+
             token_raw = generate_token(tenant_id, "monthly_selection", plan_id, expires_days=7)
             gestionale_url = os.getenv("GESTIONALE_URL", "https://app.radiantbeauty.it")
             link = f"{gestionale_url}/p/selection/{token_raw}"
-            logger.info("Propose: %d proposals for tenant %s, link: %s", count, tenant_id, link)
+
+            month_names = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+                           "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
+            month_name = month_names[month] if 1 <= month <= 12 else str(month)
+
+            tenant_res = sb.table("tenants").select("owner_phone, phone").eq("id", tenant_id).limit(1).execute()
+            tenant_row = (tenant_res.data or [{}])[0]
+            owner_phone = tenant_row.get("owner_phone") or tenant_row.get("phone")
+
+            if owner_phone:
+                text = (
+                    f"\U0001f338 Ho preparato {count} proposte di campagna per {month_name}!\n\n"
+                    f"Scegli quelle che ti piacciono:\n{link}\n\n"
+                    f"Hai 7 giorni per selezionarle."
+                )
+                asyncio.run(send_platform_message(owner_phone, text))
+                sb.table("auto_campaign_plans").update({
+                    "selection_link_sent_at": datetime.now(timezone.utc).isoformat()
+                }).eq("id", plan_id).execute()
+                logger.info("Propose+notify: %d proposals, link sent to %s (tenant %s)", count, owner_phone, tenant_id)
+            else:
+                logger.warning("No owner_phone for tenant %s, WA not sent", tenant_id)
         except Exception as exc:
             logger.error("Propose failed for tenant %s: %s", tenant_id, exc)
 
