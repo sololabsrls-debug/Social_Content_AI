@@ -359,6 +359,26 @@ async def trigger_propose(month: int, year: int, tenant: dict = Depends(get_tena
     return {"ok": True, "plan_id": plan_id}
 
 
+@router.post("/{campaign_id}/force-notify")
+async def force_notify_campaign(campaign_id: str, tenant: dict = Depends(get_tenant)):
+    """Trigger manuale notifica review (per test/debug). Bypassa notification_due_at."""
+    from src.campaigns.auto.notifier import _notify_one
+    sb = get_supabase()
+    campaign = _campaign_or_404(sb, campaign_id, tenant["id"])
+
+    if not campaign.get("message_text"):
+        raise HTTPException(status_code=409, detail="Campagna senza testo generato, non notificabile")
+
+    allowed = ("auto_draft", "auto_pending", "auto_approved")
+    if campaign["status"] not in allowed:
+        raise HTTPException(status_code=409, detail=f"Campagna in stato '{campaign['status']}', non notificabile")
+
+    sb.table("wa_campaigns").update({"status": "auto_draft"}).eq("id", campaign_id).execute()
+    campaign["status"] = "auto_draft"
+    _notify_one(sb, campaign)
+    return {"ok": True}
+
+
 @router.post("/plan/{month}/{year}/retry-generation")
 async def retry_generation(month: int, year: int, tenant: dict = Depends(get_tenant)):
     """Ritenta generazione contenuti per campagne bloccate in auto_generating."""

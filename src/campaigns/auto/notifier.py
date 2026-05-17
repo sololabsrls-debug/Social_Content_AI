@@ -71,9 +71,21 @@ def _notify_one(sb, campaign: dict) -> None:
         date_label = scheduled_str[:10]
 
     try:
+        from src.campaigns.auto.tokens import generate_token
+        expires_days = 3
+        if campaign.get("approval_deadline_at"):
+            try:
+                deadline = datetime.fromisoformat(campaign["approval_deadline_at"].replace("Z", "+00:00"))
+                if deadline.tzinfo is None:
+                    deadline = deadline.replace(tzinfo=timezone.utc)
+                days_until = max(1, (deadline - datetime.now(timezone.utc)).days)
+                expires_days = days_until
+            except Exception:
+                pass
+        token_raw = generate_token(tenant_id, "campaign_review", campaign_id, expires_days=expires_days)
         _send_whatsapp_link(
             phone=owner_phone,
-            campaign_id=campaign_id,
+            token=token_raw,
             bundle_name=bundle_name,
             scheduled_str=date_label,
             gestionale_url=GESTIONALE_URL,
@@ -90,10 +102,10 @@ def _notify_one(sb, campaign: dict) -> None:
 
 
 def _send_whatsapp_link(
-    phone: str, campaign_id: str, bundle_name: str, scheduled_str: str, gestionale_url: str
+    phone: str, token: str, bundle_name: str, scheduled_str: str, gestionale_url: str
 ) -> None:
     import asyncio
-    link = f"{gestionale_url}/marketing/auto/review/{campaign_id}"
+    link = f"{gestionale_url}/p/review/{token}"
     text = (
         f"\U0001f338 Ho preparato la campagna \"{bundle_name}\" per il {scheduled_str}.\n\n"
         f"Aprila qui per vederla, modificarla e approvarla:\n{link}"
