@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Header, HTTPException
 
-from src.campaigns.auto.models import ProposalSelectIn, PublicMessageUpdateIn
+from src.campaigns.auto.models import ProposalSelectIn, PublicMessageUpdateIn, PublicTargetUpdateIn, PublicImageUploadIn
 from src.campaigns.auto.tokens import validate_token
 from src.supabase_client import get_supabase
 
@@ -183,6 +183,50 @@ async def regenerate_image_public(token: str):
         sb.table("wa_campaigns").update({"image_url": image_url}).eq("id", campaign_id).execute()
         return {"image_url": image_url}
     raise HTTPException(status_code=500, detail="Generazione immagine fallita")
+
+
+@router.patch("/review/{token}/target")
+async def update_target(token: str, body: PublicTargetUpdateIn):
+    ctx = validate_token(token, "campaign_review")
+    campaign_id = ctx["resource_id"]
+    sb = get_supabase()
+    sb.table("wa_campaigns").update({"target_summary": body.target_summary}) \
+        .eq("id", campaign_id).eq("tenant_id", ctx["tenant_id"]).execute()
+    return {"ok": True}
+
+
+@router.post("/review/{token}/upload-image")
+async def upload_image_public(token: str, body: PublicImageUploadIn):
+    import base64, uuid, mimetypes
+    ctx = validate_token(token, "campaign_review")
+    campaign_id = ctx["resource_id"]
+    sb = get_supabase()
+
+    row_res = sb.table("wa_campaigns").select("tenant_id") \
+        .eq("id", campaign_id).limit(1).execute()
+    if not (row_res.data or []):
+        raise HTTPException(status_code=404, detail="Campagna non trovata")
+
+    ext = mimetypes.guess_extension(body.mime_type) or ".jpg"
+    if ext == ".jpe":
+        ext = ".jpg"
+    path = f"campaigns/{campaign_id}/{uuid.uuid4()}{ext}"
+    image_bytes = base64.b64decode(body.image_data)
+    sb.storage.from_("social-media").upload(path, image_bytes, {"content-type": body.mime_type})
+    image_url = sb.storage.from_("social-media").get_public_url(path)
+    sb.table("wa_campaigns").update({"image_url": image_url}) \
+        .eq("id", campaign_id).execute()
+    return {"image_url": image_url}
+
+
+@router.delete("/review/{token}/image")
+async def remove_image_public(token: str):
+    ctx = validate_token(token, "campaign_review")
+    campaign_id = ctx["resource_id"]
+    sb = get_supabase()
+    sb.table("wa_campaigns").update({"image_url": None}) \
+        .eq("id", campaign_id).eq("tenant_id", ctx["tenant_id"]).execute()
+    return {"ok": True}
 
 
 @router.post("/review/{token}/approve")

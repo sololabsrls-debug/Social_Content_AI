@@ -29,3 +29,12 @@ class ProposalSelectIn(BaseModel):
 
 class PublicMessageUpdateIn(BaseModel):
     message_text: str
+
+
+class PublicTargetUpdateIn(BaseModel):
+    target_summary: str
+
+
+class PublicImageUploadIn(BaseModel):
+    image_data: str   # base64
+    mime_type: str    # es. "image/jpeg"
