@@ -174,8 +174,21 @@ async def update_bundle_order(bundle_id: str, body: AutoBundleOrderIn, tenant: d
 @router.delete("/bundles/{bundle_id}")
 async def delete_bundle(bundle_id: str, tenant: dict = Depends(get_tenant)):
     sb = get_supabase()
+    # Fetch bundle to check if it came from a proposal
+    b_res = sb.table("bundles").select("source_proposal_id") \
+        .eq("id", bundle_id).eq("tenant_id", tenant["id"]).limit(1).execute()
+    bundle = (b_res.data or [None])[0]
+
     sb.table("bundles").update({"is_active": False}) \
         .eq("id", bundle_id).eq("tenant_id", tenant["id"]).execute()
+
+    # Revert proposal status so "Salva come fissa" button reappears
+    if bundle and bundle.get("source_proposal_id"):
+        sb.table("auto_campaign_proposals").update({
+            "status": "selected",
+            "saved_as_fixed_at": None,
+        }).eq("id", bundle["source_proposal_id"]).execute()
+
     return {"ok": True}
 
 
@@ -497,6 +510,7 @@ async def save_proposal_as_fixed(proposal_id: str, tenant: dict = Depends(get_te
     else:
         bundle_data["product_ids"] = []
 
+    bundle_data["source_proposal_id"] = proposal_id
     sb.table("bundles").insert(bundle_data).execute()
     sb.table("auto_campaign_proposals").update({
         "status": "saved_as_fixed",
