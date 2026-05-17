@@ -314,9 +314,15 @@ async def trigger_propose(month: int, year: int, tenant: dict = Depends(get_tena
     if (plan_res.data or [{}])[0].get("selection_link_sent_at"):
         return {"ok": False, "error": "Link già inviato per questo mese", "plan_id": plan_id}
 
+    # Legge campaigns_per_month per generare almeno il doppio
+    cfg_res = sb.table("auto_campaign_configs").select("campaigns_per_month") \
+        .eq("tenant_id", tenant_id).limit(1).execute()
+    campaigns_per_month = (cfg_res.data or [{}])[0].get("campaigns_per_month") or 4
+    proposal_target = max(campaigns_per_month * 2, 6)
+
     def _run():
         try:
-            count = generate_proposals(tenant_id, plan_id, month, year)
+            count = generate_proposals(tenant_id, plan_id, month, year, count=proposal_target)
             if count == 0:
                 logger.warning("No proposals generated for tenant %s", tenant_id)
                 return

@@ -70,6 +70,8 @@ def generate_proposals(tenant_id: str, plan_id: str, month: int, year: int, coun
     )
     bundles_str = ", ".join(b.get("name", "") for b in existing_bundles[:10]) or "nessuno"
 
+    ai_request_count = count + 4  # buffer per compensare proposte che non passano validazione
+
     prompt = f"""Sei un esperto di marketing per centri estetici italiani.
 
 Centro: {tenant_name}
@@ -85,9 +87,19 @@ Prodotti disponibili:
 
 Bundle già configurati (da non ripetere identici): {bundles_str}
 
-Genera esattamente {count} proposte di campagna promozionale per {month_name}.
+Genera esattamente {ai_request_count} proposte di campagna promozionale per {month_name}.
 Ogni proposta deve usare uno di questi tipi: service_product, service_only, product_only, multi_session, service_service, product_bundle, seasonal, reactivation.
 Varia i tipi — non usare lo stesso tipo più di 2-3 volte.
+
+IMPORTANTE — per ogni promo_type includi TUTTI i campi richiesti:
+- service_product: service_id, product_id, bundle_price, original_price
+- service_only: service_id, bundle_price, original_price
+- product_only: product_id, bundle_price, original_price
+- multi_session: service_id, session_count, bundle_price, original_price
+- service_service: service_id_1, service_id_2, bundle_price, original_price
+- product_bundle: product_ids (array), bundle_price, original_price
+- seasonal: bundle_price, original_price, theme
+- reactivation: service_id, inactive_months_min, discount_pct
 
 Rispondi SOLO con un array JSON valido, senza testo extra:
 [
@@ -104,13 +116,13 @@ Rispondi SOLO con un array JSON valido, senza testo extra:
   }}
 ]
 
-Usa SEMPRE id reali dai servizi/prodotti forniti. Per seasonal e reactivation puoi scegliere liberamente il servizio."""
+Usa SEMPRE id reali dai servizi/prodotti forniti."""
 
     try:
         client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
         msg = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=2000,
+            max_tokens=4000,
             messages=[{"role": "user", "content": prompt}],
         )
         raw = msg.content[0].text.strip()
@@ -128,7 +140,7 @@ Usa SEMPRE id reali dai servizi/prodotti forniti. Per seasonal e reactivation pu
     expires_at = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc).isoformat()
 
     saved = 0
-    for item in proposals_data[:count]:
+    for item in proposals_data:
         promo_type = item.get("promo_type", "")
         if promo_type not in REQUIRED_FIELDS:
             logger.warning("Unknown promo_type %s, skipping", promo_type)
