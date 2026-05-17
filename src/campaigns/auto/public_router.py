@@ -35,7 +35,7 @@ async def get_selection(token: str):
     plan_id = ctx["resource_id"]
     sb = get_supabase()
 
-    plan_res = sb.table("auto_campaign_plans").select("month, year, proposals_count, selected_count") \
+    plan_res = sb.table("auto_campaign_plans").select("month, year, proposals_count, selected_count, selection_confirmed_at") \
         .eq("id", plan_id).limit(1).execute()
     plan = (plan_res.data or [None])[0]
     if not plan:
@@ -53,6 +53,7 @@ async def get_selection(token: str):
         "plan": plan,
         "max_selectable": max_select,
         "proposals": proposals_res.data or [],
+        "already_confirmed": bool(plan.get("selection_confirmed_at")),
     }
 
 
@@ -62,6 +63,12 @@ async def confirm_selection(token: str, body: ProposalSelectIn):
     plan_id = ctx["resource_id"]
     tenant_id = ctx["tenant_id"]
     sb = get_supabase()
+
+    # Blocca se già confermato
+    plan_check = sb.table("auto_campaign_plans").select("selection_confirmed_at") \
+        .eq("id", plan_id).limit(1).execute()
+    if (plan_check.data or [{}])[0].get("selection_confirmed_at"):
+        raise HTTPException(status_code=409, detail="Selezione già confermata")
 
     # Verifica max_selectable
     config_res = sb.table("auto_campaign_configs").select("campaigns_per_month") \
