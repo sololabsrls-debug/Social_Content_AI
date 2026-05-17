@@ -166,7 +166,7 @@ def _fetch_services(sb, tenant_id: str) -> list:
 
 
 def _fetch_products(sb, tenant_id: str) -> list:
-    res = sb.table("products").select("id, name, sale_price, price") \
+    res = sb.table("products").select("id, name, sale_price") \
         .eq("tenant_id", tenant_id).eq("product_type", "retail").limit(30).execute()
     return res.data or []
 
