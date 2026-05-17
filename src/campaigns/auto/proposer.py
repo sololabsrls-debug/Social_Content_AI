@@ -141,6 +141,8 @@ Usa SEMPRE id reali dai servizi/prodotti forniti."""
 
     saved = 0
     for item in proposals_data:
+        if saved >= count:
+            break
         promo_type = item.get("promo_type", "")
         if promo_type not in REQUIRED_FIELDS:
             logger.warning("Unknown promo_type %s, skipping", promo_type)
