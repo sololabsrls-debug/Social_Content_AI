@@ -132,7 +132,7 @@ def generate_for_campaigns(campaign_ids: list[str], tenant: dict) -> None:
         logger.warning("generate_for_campaigns: no auto_generating campaigns found for ids %s", campaign_ids)
         return
 
-    # Fetch bundles via auto_bundle_id (se esistente) — per proposte può essere None
+    # Fetch bundles via auto_bundle_id
     bundle_ids = list({c["auto_bundle_id"] for c in campaigns if c.get("auto_bundle_id")})
     bundles_by_id: dict = {}
     if bundle_ids:
@@ -140,8 +140,32 @@ def generate_for_campaigns(campaign_ids: list[str], tenant: dict) -> None:
             .in_("id", bundle_ids).execute()
         bundles_by_id = {b["id"]: b for b in (bundles_res.data or [])}
 
+    # Fetch proposals for proposal-based campaigns (no auto_bundle_id)
+    proposal_ids = list({c["auto_proposal_id"] for c in campaigns
+                         if c.get("auto_proposal_id") and not c.get("auto_bundle_id")})
+    proposals_as_bundles: dict = {}
+    if proposal_ids:
+        prop_res = sb.table("auto_campaign_proposals") \
+            .select("id, promo_type, promo_config, display_name") \
+            .in_("id", proposal_ids).execute()
+        for p in (prop_res.data or []):
+            config = p.get("promo_config") or {}
+            proposals_as_bundles[p["id"]] = {
+                "name": p.get("display_name") or p.get("promo_type") or "Promozione",
+                "bundle_type": p.get("promo_type", "service_product"),
+                "bundle_price": config.get("bundle_price"),
+            }
+
     for campaign in campaigns:
-        bundle = bundles_by_id.get(campaign.get("auto_bundle_id")) or {}
+        if campaign.get("auto_bundle_id"):
+            bundle = bundles_by_id.get(campaign["auto_bundle_id"]) or {}
+        elif campaign.get("auto_proposal_id"):
+            bundle = proposals_as_bundles.get(campaign["auto_proposal_id"]) or {}
+        else:
+            bundle = {}
+        # Fallback name from campaign objective
+        if not bundle.get("name"):
+            bundle = {**bundle, "name": campaign.get("objective") or "Promozione"}
         try:
             asyncio.run(generate_campaign_content(campaign, bundle, tenant))
         except Exception as exc:

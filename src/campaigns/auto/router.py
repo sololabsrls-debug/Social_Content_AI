@@ -340,6 +340,42 @@ async def trigger_propose(month: int, year: int, tenant: dict = Depends(get_tena
     return {"ok": True, "plan_id": plan_id}
 
 
+@router.post("/plan/{month}/{year}/retry-generation")
+async def retry_generation(month: int, year: int, tenant: dict = Depends(get_tenant)):
+    """Ritenta generazione contenuti per campagne bloccate in auto_generating."""
+    import threading
+    from src.campaigns.auto.generator import generate_for_campaigns
+    from src.campaigns.auto.scheduler import _finalize_plan_status
+
+    tenant_id = tenant["id"]
+    sb = get_supabase()
+
+    plan_res = sb.table("auto_campaign_plans").select("id, status") \
+        .eq("tenant_id", tenant_id).eq("month", month).eq("year", year).limit(1).execute()
+    plan = (plan_res.data or [None])[0]
+    if not plan:
+        raise HTTPException(status_code=404, detail="Piano non trovato")
+
+    campaigns_res = sb.table("wa_campaigns").select("id") \
+        .eq("auto_plan_id", plan["id"]).eq("status", "auto_generating").execute()
+    campaign_ids = [c["id"] for c in (campaigns_res.data or [])]
+    if not campaign_ids:
+        return {"ok": True, "message": "Nessuna campagna da rigenerare"}
+
+    # Reset piano a generating per permettere _finalize_plan_status
+    sb.table("auto_campaign_plans").update({"status": "generating"}).eq("id", plan["id"]).execute()
+
+    def _bg():
+        try:
+            generate_for_campaigns(campaign_ids, tenant)
+            _finalize_plan_status(get_supabase(), plan["id"])
+        except Exception as exc:
+            logger.error("Retry generation failed for plan %s: %s", plan["id"], exc)
+
+    threading.Thread(target=_bg, daemon=True).start()
+    return {"ok": True, "retrying": len(campaign_ids)}
+
+
 @router.post("/plan/{month}/{year}/confirm-proposals")
 async def confirm_proposals(month: int, year: int, body: ProposalSelectIn, tenant: dict = Depends(get_tenant)):
     """Conferma selezione proposte dal gestionale (autenticata con X-API-Key)."""
