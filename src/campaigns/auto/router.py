@@ -375,7 +375,9 @@ async def force_notify_campaign(campaign_id: str, tenant: dict = Depends(get_ten
 
     sb.table("wa_campaigns").update({"status": "auto_draft"}).eq("id", campaign_id).execute()
     campaign["status"] = "auto_draft"
-    _notify_one(sb, campaign)
+    import asyncio
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _notify_one, sb, campaign)
     return {"ok": True}
 
 
