@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 
-from src.campaigns.auto.models import AutoCampaignConfigIn, AutoBundleOrderIn, AutoCampaignRescheduleIn
+from src.campaigns.auto.models import AutoCampaignConfigIn, AutoBundleOrderIn, AutoCampaignRescheduleIn, ProposalSelectIn
 from src.social.supabase_queries import get_tenant_by_api_key
 from src.supabase_client import get_supabase
 
@@ -338,6 +338,69 @@ async def trigger_propose(month: int, year: int, tenant: dict = Depends(get_tena
 
     threading.Thread(target=_run, daemon=True).start()
     return {"ok": True, "plan_id": plan_id}
+
+
+@router.post("/plan/{month}/{year}/confirm-proposals")
+async def confirm_proposals(month: int, year: int, body: ProposalSelectIn, tenant: dict = Depends(get_tenant)):
+    """Conferma selezione proposte dal gestionale (autenticata con X-API-Key)."""
+    import threading
+    from src.campaigns.auto.planner import schedule_proposals_as_campaigns
+    from src.campaigns.auto.generator import generate_for_campaigns
+    from src.campaigns.auto.scheduler import _finalize_plan_status
+
+    tenant_id = tenant["id"]
+    sb = get_supabase()
+
+    plan_res = sb.table("auto_campaign_plans").select("id, selection_confirmed_at") \
+        .eq("tenant_id", tenant_id).eq("month", month).eq("year", year).limit(1).execute()
+    plan = (plan_res.data or [None])[0]
+    if not plan:
+        raise HTTPException(status_code=404, detail="Piano non trovato")
+    if plan.get("selection_confirmed_at"):
+        raise HTTPException(status_code=409, detail="Selezione già confermata")
+
+    plan_id = plan["id"]
+
+    config_res = sb.table("auto_campaign_configs").select("campaigns_per_month") \
+        .eq("tenant_id", tenant_id).eq("is_active", True).limit(1).execute()
+    max_select = ((config_res.data or [{}])[0]).get("campaigns_per_month", 4)
+    if len(body.proposal_ids) > max_select:
+        raise HTTPException(status_code=422, detail=f"Puoi selezionare al massimo {max_select} proposte")
+
+    props_res = sb.table("auto_campaign_proposals").select("id") \
+        .eq("plan_id", plan_id).eq("tenant_id", tenant_id).execute()
+    valid_ids = {p["id"] for p in (props_res.data or [])}
+    for pid in body.proposal_ids:
+        if pid not in valid_ids:
+            raise HTTPException(status_code=422, detail=f"Proposta {pid} non valida")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    sb.table("auto_campaign_proposals").update({"status": "selected", "selected_at": now_iso}) \
+        .in_("id", body.proposal_ids).execute()
+    reject_ids = [p["id"] for p in (props_res.data or []) if p["id"] not in set(body.proposal_ids)]
+    if reject_ids:
+        sb.table("auto_campaign_proposals").update({"status": "rejected"}).in_("id", reject_ids).execute()
+
+    selected_proposals_res = sb.table("auto_campaign_proposals").select("*") \
+        .in_("id", body.proposal_ids).execute()
+    selected_proposals = selected_proposals_res.data or []
+
+    campaign_ids = schedule_proposals_as_campaigns(sb, tenant_id, plan_id, selected_proposals, month, year)
+
+    sb.table("auto_campaign_plans").update({
+        "selection_confirmed_at": now_iso,
+        "selected_count": len(body.proposal_ids),
+    }).eq("id", plan_id).execute()
+
+    def _bg():
+        try:
+            generate_for_campaigns(campaign_ids, tenant)
+            _finalize_plan_status(get_supabase(), plan_id)
+        except Exception as exc:
+            logger.error("Background generation failed after gestionale confirm: %s", exc)
+
+    threading.Thread(target=_bg, daemon=True).start()
+    return {"ok": True, "campaigns_created": len(campaign_ids)}
 
 
 @router.get("/plan/{month}/{year}/proposals")
