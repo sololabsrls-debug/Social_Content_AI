@@ -322,7 +322,7 @@ async def trigger_propose(month: int, year: int, tenant: dict = Depends(get_tena
                 return
 
             token_raw = generate_token(tenant_id, "monthly_selection", plan_id, expires_days=7)
-            gestionale_url = os.getenv("GESTIONALE_URL", "https://app.radiantbeauty.it")
+            gestionale_url = os.getenv("GESTIONALE_URL", "https://esteticaflow.com")
             link = f"{gestionale_url}/p/selection/{token_raw}"
 
             month_names = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
