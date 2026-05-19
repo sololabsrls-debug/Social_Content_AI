@@ -21,9 +21,16 @@ logger = logging.getLogger("CAMPAIGNS.agent")
 SYSTEM_PROMPT = """Sei un assistente marketing esperto per centri estetici. Aiuti l'estetista a creare campagne WhatsApp efficaci, chiare e subito utilizzabili.
 
 GUARDRAIL, Ambito di lavoro:
-Puoi fare solo queste cose, analizzare dati del centro, proporre campagne WhatsApp, modificare target e messaggi, rispondere a domande sulla campagna in corso.
+Puoi fare solo queste cose, analizzare dati del centro, proporre campagne WhatsApp su trattamenti, prodotti retail o bundle, modificare target e messaggi, rispondere a domande sulla campagna in corso.
 Se l'estetista chiede qualcosa fuori da questo ambito, prenotazioni, contabilita, social media, ricette, domande generali, rispondi con una sola frase, "Sono qui solo per le campagne WhatsApp. Dimmi come vuoi impostare la campagna e penso a tutto io."
 Non spiegare, non scusarti, non divagare. Reindirizza subito.
+
+Marketing su prodotti e bundle:
+Puoi creare campagne su tre tipi di oggetti.
+Primo, trattamenti (servizi): usa i tool di analisi clienti e servizi come sempre.
+Secondo, prodotti retail (creme, sieri, kit da vendere): usa get_retail_products per vedere cosa ha in magazzino il centro, poi scegli il target giusto. Per trovare clienti gia affezionate a un ingrediente, usa get_clients_by_product_treatment. Il messaggio deve puntare sul concetto "porta il trattamento a casa tua" o "il segreto del tuo risultato e anche in questo prodotto".
+Terzo, bundle predefiniti (pacchetti): usa get_bundles per vedere i bundle attivi, poi crea una campagna sul risparmio e sulla completezza dell'esperienza. Se non ci sono bundle in catalogo ma l'estetista vuole promuoverne uno al momento, costruiscilo tu nel messaggio combinando un servizio e un prodotto, senza bisogno che esista in catalogo.
+In tutti i casi, chiama sempre propose_campaign alla fine con treatment_label che descrive il focus (es. "Crema Vitamina C", "Pacchetto Laser + Kit", "Siero Idratante").
 
 Flusso di lavoro obbligatorio:
 1. Usa i tool di analisi per capire i dati reali del centro, clienti, appuntamenti, servizi.
@@ -125,6 +132,7 @@ def derive_canvas_update(tool_name: str, result: Any) -> Optional[dict]:
         "get_clients_by_tag",
         "get_clients_never_returned",
         "get_client_by_name",
+        "get_clients_by_product_treatment",
     }
 
     if tool_name == "get_clients_reachable_wa" and isinstance(result, list):
@@ -238,6 +246,7 @@ async def run_campaign_agent(
         "get_clients_with_birthday",
         "get_clients_by_tag",
         "get_clients_never_returned",
+        "get_clients_by_product_treatment",
     }
 
     first_user_text = next((m["content"] for m in messages if m["role"] == "user"), "")
@@ -358,9 +367,10 @@ async def run_campaign_agent(
 
                 if tc.name in target_replace_tools and isinstance(result, list):
                     target_selection_touched = True
-                    # Filter to WA-consented clients only for auto-selected targets
                     consented = [c for c in result if c.get("consent_wa")]
-                    target_client_data = _dedupe_client_data(consented)
+                    new_data = _dedupe_client_data(consented)
+                    if new_data:  # non azzerare target esistente se tool ritorna vuoto
+                        target_client_data = new_data
                 elif tc.name == "get_clients_reachable_wa" and isinstance(result, list):
                     # Use WA list as fallback target when no service-specific target found yet
                     if not target_client_data:
