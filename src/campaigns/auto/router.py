@@ -274,7 +274,7 @@ async def approve_campaign(campaign_id: str, tenant: dict = Depends(get_tenant))
 async def reject_campaign(campaign_id: str, tenant: dict = Depends(get_tenant)):
     sb = get_supabase()
     row = _campaign_or_404(sb, campaign_id, tenant["id"])
-    if row["status"] not in ("auto_pending", "auto_approved"):
+    if row["status"] not in ("auto_pending", "auto_approved", "auto_draft"):
         raise HTTPException(status_code=409, detail=f"Campagna in stato '{row['status']}', non rifiutabile")
     sb.table("wa_campaigns").update({"status": "auto_rejected"}) \
         .eq("id", campaign_id).execute()
