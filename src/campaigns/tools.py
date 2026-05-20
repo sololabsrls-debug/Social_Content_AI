@@ -374,15 +374,95 @@ def get_upcoming_week_availability(tenant_id: str) -> dict:
     }
 
 
+# ── Prodotti e Bundle ──────────────────────────────────────────────
+
+
+def get_retail_products(tenant_id: str) -> list[dict]:
+    """Lista prodotti retail attivi (vendibili ai clienti): nome, brand, prezzo, descrizione."""
+    sb = get_supabase()
+    res = (
+        sb.table("products")
+        .select("id, name, brand, category, sale_price, online_description")
+        .eq("tenant_id", tenant_id)
+        .eq("product_type", "retail")
+        .eq("is_active", True)
+        .order("name")
+        .limit(50)
+        .execute()
+    )
+    return res.data or []
+
+
+def get_bundles(tenant_id: str) -> list[dict]:
+    """Lista bundle attivi (pacchetti servizi e/o prodotti) con prezzi e descrizione."""
+    sb = get_supabase()
+    res = (
+        sb.table("bundles")
+        .select("id, name, description, bundle_type, original_price, bundle_price, discount_pct, service_ids, product_ids")
+        .eq("tenant_id", tenant_id)
+        .eq("is_active", True)
+        .order("name")
+        .execute()
+    )
+    return res.data or []
+
+
+def get_clients_by_product_treatment(
+    tenant_id: str,
+    product_name: str,
+    months_back: int = 6,
+) -> list[dict]:
+    """Clienti che hanno fatto trattamenti che usano un prodotto specifico (da prodotti_utilizzati nei servizi)."""
+    sb = get_supabase()
+    svc_res = (
+        sb.table("services")
+        .select("id, name, prodotti_utilizzati")
+        .eq("tenant_id", tenant_id)
+        .execute()
+    )
+    product_lower = product_name.lower()
+    matching_ids = [
+        s["id"] for s in (svc_res.data or [])
+        if any(product_lower in (p or "").lower() for p in (s.get("prodotti_utilizzati") or []))
+    ]
+    if not matching_ids:
+        return []
+
+    cutoff = (date.today() - timedelta(days=30 * months_back)).isoformat()
+    appts = (
+        sb.table("appointments")
+        .select("client_id")
+        .eq("tenant_id", tenant_id)
+        .gte("start_at", cutoff)
+        .in_("status", ["confirmed", "completed"])
+        .in_("service_id", matching_ids)
+        .execute()
+    )
+    client_ids = list({r["client_id"] for r in (appts.data or []) if r.get("client_id")})
+    if not client_ids:
+        return []
+
+    clients = (
+        sb.table("clients")
+        .select("id, name, whatsapp_phone, consent_wa, ltv, last_appointment_at")
+        .eq("tenant_id", tenant_id)
+        .eq("consent_wa", True)
+        .not_.is_("whatsapp_phone", "null")
+        .in_("id", client_ids[:100])
+        .execute()
+    )
+    return clients.data or []
+
+
 # ── Servizi ────────────────────────────────────────────────────────
 
 
 def get_services_list(tenant_id: str) -> list[dict]:
-    """Lista tutti i servizi del centro."""
+    """Lista tutti i servizi del centro con prezzi."""
     sb = get_supabase()
     res = (
         sb.table("services")
-        .select("id, name, descrizione_breve, duration_min")
+        .select("id, name, descrizione_breve, duration_min, price")
         .eq("tenant_id", tenant_id)
         .execute()
     )
@@ -390,11 +470,11 @@ def get_services_list(tenant_id: str) -> list[dict]:
 
 
 def get_service_details(tenant_id: str, service_name: str) -> Optional[dict]:
-    """Dettaglio completo di un servizio."""
+    """Dettaglio completo di un servizio incluso il prezzo."""
     sb = get_supabase()
     res = (
         sb.table("services")
-        .select("id, name, descrizione_breve, descrizione_completa, benefici, prodotti_utilizzati, duration_min")
+        .select("id, name, descrizione_breve, descrizione_completa, benefici, prodotti_utilizzati, duration_min, price")
         .eq("tenant_id", tenant_id)
         .ilike("name", f"%{service_name}%")
         .limit(1)
@@ -676,13 +756,42 @@ TOOL_SCHEMAS: list[dict] = [
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
     {
+        "name": "get_retail_products",
+        "description": "Lista i prodotti retail attivi del centro (creme, sieri, kit vendibili ai clienti) con nome, brand, prezzo e descrizione. Usare per campagne su prodotti specifici o per proporre bundle servizio+prodotto.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_bundles",
+        "description": "Lista i bundle attivi del centro (pacchetti servizi con sconto o combinazioni servizio+prodotto retail) con prezzi e descrizione. Usare quando l'estetista vuole promuovere un pacchetto combinato.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_clients_by_product_treatment",
+        "description": "Trova clienti che hanno fatto trattamenti che utilizzano un ingrediente o prodotto specifico. Utile per campagne di upselling del prodotto retail correlato ('porta il trattamento a casa').",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_name": {
+                    "type": "string",
+                    "description": "Nome del prodotto o ingrediente da cercare nei trattamenti (es. 'acido ialuronico', 'laser', 'vitamina C')",
+                },
+                "months_back": {
+                    "type": "integer",
+                    "description": "Quanti mesi indietro cercare gli appuntamenti",
+                    "default": 6,
+                },
+            },
+            "required": ["product_name"],
+        },
+    },
+    {
         "name": "get_services_list",
-        "description": "Lista tutti i servizi offerti dal centro con nome e durata.",
+        "description": "Lista tutti i servizi offerti dal centro con nome, durata e prezzo. Usare sempre quando si costruisce un'offerta o si vuole conoscere il listino completo.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
     {
         "name": "get_service_details",
-        "description": "Dettaglio completo di un servizio: descrizione, benefici, prodotti utilizzati.",
+        "description": "Dettaglio completo di un servizio: descrizione, benefici, prodotti utilizzati e prezzo. Usare per costruire offerte precise su un trattamento specifico.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -820,6 +929,9 @@ TOOL_FUNCTIONS: dict[str, Any] = {
     "get_appointments_by_service": get_appointments_by_service,
     "get_busiest_services": get_busiest_services,
     "get_upcoming_week_availability": get_upcoming_week_availability,
+    "get_retail_products": get_retail_products,
+    "get_bundles": get_bundles,
+    "get_clients_by_product_treatment": get_clients_by_product_treatment,
     "get_services_list": get_services_list,
     "get_service_details": get_service_details,
     "get_client_retention_rate": get_client_retention_rate,
