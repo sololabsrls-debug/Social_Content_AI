@@ -59,9 +59,12 @@ async def generate_campaign_content(campaign: dict, bundle: dict, tenant: dict) 
         logger.error("Agent failed for campaign %s: %s", campaign_id, exc)
         return
 
-    # Check if agent produced message_text
+    # Check if agent produced message_text.
+    # Include target_summary + objective so _generate_image can build the
+    # image concept from the real treatment label (otherwise it falls back
+    # to "Promozione esclusiva" and the graphic becomes generic).
     sb = get_supabase()
-    res = sb.table("wa_campaigns").select("message_text").eq("id", campaign_id) \
+    res = sb.table("wa_campaigns").select("message_text, target_summary, objective").eq("id", campaign_id) \
         .eq("tenant_id", tenant_id).limit(1).execute()
     row = (res.data or [None])[0]
 
