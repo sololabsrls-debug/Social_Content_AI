@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 
-from src.campaigns.auto.models import AutoCampaignConfigIn, AutoBundleOrderIn, AutoCampaignRescheduleIn, ProposalSelectIn
+from src.campaigns.auto.models import AutoCampaignConfigIn, AutoBundleOrderIn, AutoCampaignRescheduleIn, ProposalSelectIn, PublicImageUploadIn
 from src.social.supabase_queries import get_tenant_by_api_key
 from src.supabase_client import get_supabase
 
@@ -289,6 +289,38 @@ async def reschedule_campaign(campaign_id: str, body: AutoCampaignRescheduleIn, 
         raise HTTPException(status_code=409, detail="Campagna già inviata o in invio")
     sb.table("wa_campaigns").update({"scheduled_at": body.scheduled_at}) \
         .eq("id", campaign_id).execute()
+    return {"ok": True}
+
+
+@router.post("/{campaign_id}/upload-image")
+async def upload_campaign_image(campaign_id: str, body: PublicImageUploadIn, tenant: dict = Depends(get_tenant)):
+    """Carica un'immagine personalizzata per la campagna (sostituisce quella AI)."""
+    import base64
+    import uuid
+    import mimetypes
+
+    sb = get_supabase()
+    _campaign_or_404(sb, campaign_id, tenant["id"])  # verifica ownership
+
+    ext = mimetypes.guess_extension(body.mime_type) or ".jpg"
+    if ext == ".jpe":
+        ext = ".jpg"
+    path = f"{tenant['id']}/campaigns/{campaign_id}/{uuid.uuid4()}{ext}"
+    image_bytes = base64.b64decode(body.image_data)
+    sb.storage.from_("social-media").upload(path, image_bytes, {"content-type": body.mime_type})
+    image_url = sb.storage.from_("social-media").get_public_url(path)
+    sb.table("wa_campaigns").update({"image_url": image_url}) \
+        .eq("id", campaign_id).eq("tenant_id", tenant["id"]).execute()
+    return {"image_url": image_url}
+
+
+@router.delete("/{campaign_id}/image")
+async def delete_campaign_image(campaign_id: str, tenant: dict = Depends(get_tenant)):
+    """Rimuove l'immagine della campagna."""
+    sb = get_supabase()
+    _campaign_or_404(sb, campaign_id, tenant["id"])  # verifica ownership
+    sb.table("wa_campaigns").update({"image_url": None}) \
+        .eq("id", campaign_id).eq("tenant_id", tenant["id"]).execute()
     return {"ok": True}
 
 

@@ -51,3 +51,44 @@ def test_approve_wrong_status_409(client, monkeypatch):
     monkeypatch.setattr("src.campaigns.auto.router.get_supabase", lambda: sb)
     resp = client.put("/campaigns/auto/c1/approve", headers={"X-API-Key": "key"})
     assert resp.status_code == 409
+
+
+def test_delete_campaign_image_200(client, monkeypatch):
+    sb = MagicMock()
+    sb.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+        {"id": "c1", "tenant_id": "t1", "status": "auto_draft"}
+    ]
+    sb.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value.data = [{}]
+    monkeypatch.setattr("src.campaigns.auto.router.get_supabase", lambda: sb)
+    resp = client.delete("/campaigns/auto/c1/image", headers={"X-API-Key": "key"})
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
+
+
+def test_upload_campaign_image_200(client, monkeypatch):
+    sb = MagicMock()
+    sb.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+        {"id": "c1", "tenant_id": "t1", "status": "auto_draft"}
+    ]
+    sb.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value.data = [{}]
+    sb.storage.from_.return_value.get_public_url.return_value = "https://cdn.example/x.jpg"
+    monkeypatch.setattr("src.campaigns.auto.router.get_supabase", lambda: sb)
+    resp = client.post(
+        "/campaigns/auto/c1/upload-image",
+        headers={"X-API-Key": "key"},
+        json={"image_data": "eA==", "mime_type": "image/jpeg"},  # base64("x")
+    )
+    assert resp.status_code == 200
+    assert resp.json()["image_url"] == "https://cdn.example/x.jpg"
+
+
+def test_upload_campaign_image_wrong_tenant_404(client, monkeypatch):
+    sb = MagicMock()
+    sb.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+    monkeypatch.setattr("src.campaigns.auto.router.get_supabase", lambda: sb)
+    resp = client.post(
+        "/campaigns/auto/c1/upload-image",
+        headers={"X-API-Key": "key"},
+        json={"image_data": "eA==", "mime_type": "image/jpeg"},
+    )
+    assert resp.status_code == 404
