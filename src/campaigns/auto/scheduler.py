@@ -38,7 +38,15 @@ def run_monthly_proposer() -> None:
             if plan.get("selection_link_sent_at"):
                 continue  # già inviato
 
-            count = generate_proposals(tenant_id, plan_id, month, year)
+            # Idempotenza: se le proposte esistono già (es. invio precedente fallito),
+            # non rigenerarle — riusa quelle presenti ed esegui solo l'invio.
+            existing = sb.table("auto_campaign_proposals").select("id") \
+                .eq("plan_id", plan_id).execute()
+            existing_rows = existing.data or []
+            if existing_rows:
+                count = len(existing_rows)
+            else:
+                count = generate_proposals(tenant_id, plan_id, month, year)
             if count == 0:
                 logger.warning("No proposals generated for tenant %s", tenant_id)
                 continue
@@ -62,7 +70,13 @@ def run_monthly_proposer() -> None:
                 f"Scegli quelle che ti piacciono:\n{link}\n\n"
                 f"Hai 7 giorni per selezionarle."
             )
-            asyncio.run(send_platform_message(owner_phone, text))
+            send_result = asyncio.run(send_platform_message(owner_phone, text))
+            if not send_result.get("ok"):
+                logger.error(
+                    "Proposer: WA send failed for tenant %s: %s — selection_link_sent_at NOT set, will retry",
+                    tenant_id, send_result.get("error"),
+                )
+                continue
 
             sb.table("auto_campaign_plans").update({
                 "selection_link_sent_at": now.isoformat()
@@ -112,7 +126,10 @@ def poll_proposal_reminders() -> None:
                 )
                 link = f"{GESTIONALE_URL}/p/selection/{token_raw}"
                 text = f"\U000023f0 Ultimo promemoria! Scegli le campagne del mese:\n{link}"
-                asyncio.run(send_platform_message(phone, text))
+                send_result = asyncio.run(send_platform_message(phone, text))
+                if not send_result.get("ok"):
+                    logger.error("Reminder 2 WA send failed for tenant %s: %s", plan["tenant_id"], send_result.get("error"))
+                    continue
                 sb.table("auto_campaign_plans").update({"reminder_2_sent_at": now.isoformat()}) \
                     .eq("id", plan["id"]).execute()
                 logger.info("Sent reminder 2 to tenant %s", plan["tenant_id"])
@@ -123,7 +140,10 @@ def poll_proposal_reminders() -> None:
                 )
                 link = f"{GESTIONALE_URL}/p/selection/{token_raw}"
                 text = f"\U0001f4f2 Non dimenticare di scegliere le campagne del mese!\n{link}"
-                asyncio.run(send_platform_message(phone, text))
+                send_result = asyncio.run(send_platform_message(phone, text))
+                if not send_result.get("ok"):
+                    logger.error("Reminder 1 WA send failed for tenant %s: %s", plan["tenant_id"], send_result.get("error"))
+                    continue
                 sb.table("auto_campaign_plans").update({"reminder_1_sent_at": now.isoformat()}) \
                     .eq("id", plan["id"]).execute()
                 logger.info("Sent reminder 1 to tenant %s", plan["tenant_id"])

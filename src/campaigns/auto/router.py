@@ -322,7 +322,14 @@ async def trigger_propose(month: int, year: int, tenant: dict = Depends(get_tena
 
     def _run():
         try:
-            count = generate_proposals(tenant_id, plan_id, month, year, count=proposal_target)
+            # Idempotenza: non rigenerare se esistono già proposte per il piano
+            existing = sb.table("auto_campaign_proposals").select("id") \
+                .eq("plan_id", plan_id).execute()
+            existing_rows = existing.data or []
+            if existing_rows:
+                count = len(existing_rows)
+            else:
+                count = generate_proposals(tenant_id, plan_id, month, year, count=proposal_target)
             if count == 0:
                 logger.warning("No proposals generated for tenant %s", tenant_id)
                 return
@@ -345,7 +352,13 @@ async def trigger_propose(month: int, year: int, tenant: dict = Depends(get_tena
                     f"Scegli quelle che ti piacciono:\n{link}\n\n"
                     f"Hai 7 giorni per selezionarle."
                 )
-                asyncio.run(send_platform_message(owner_phone, text))
+                send_result = asyncio.run(send_platform_message(owner_phone, text))
+                if not send_result.get("ok"):
+                    logger.error(
+                        "Propose: WA send failed for tenant %s: %s — selection_link_sent_at NOT set",
+                        tenant_id, send_result.get("error"),
+                    )
+                    return
                 sb.table("auto_campaign_plans").update({
                     "selection_link_sent_at": datetime.now(timezone.utc).isoformat()
                 }).eq("id", plan_id).execute()
